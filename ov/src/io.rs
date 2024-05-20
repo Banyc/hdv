@@ -50,6 +50,10 @@ where
         self.write.write_all(&self.buf)?;
         Ok(())
     }
+
+    pub fn flush(&mut self) -> std::io::Result<()> {
+        self.write.flush()
+    }
 }
 
 #[derive(Debug)]
