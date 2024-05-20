@@ -1,0 +1,10 @@
+[package]
+name = "ov"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bincode = "1"
+integer-encoding = "4"
+serde = { version = "1", features = ["derive"] }
+strum = { version = "0.26", features = ["derive"] }
