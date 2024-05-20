@@ -9,12 +9,12 @@ pub struct ObjectScheme {
     pub fields: Vec<FieldScheme>,
 }
 impl ObjectScheme {
-    pub fn child_names(&self) -> Vec<String> {
-        let mut child_names = vec![];
+    pub fn atom_schemes(&self) -> Vec<AtomScheme> {
+        let mut atoms = vec![];
         for field in &self.fields {
-            child_names.extend(field.child_names().into_iter());
+            atoms.extend(field.atom_schemes().into_iter());
         }
-        child_names
+        atoms
     }
 
     pub fn atom_types(&self, types: &mut Vec<AtomType>) {
@@ -30,16 +30,25 @@ pub struct FieldScheme {
     pub value: ValueType,
 }
 impl FieldScheme {
-    pub fn child_names(&self) -> Vec<String> {
-        let post_names = match &self.value {
-            ValueType::Atom(_) => return vec![self.name.clone()],
-            ValueType::Object(object) => object.child_names(),
+    pub fn atom_schemes(&self) -> Vec<AtomScheme> {
+        let post_atoms = match &self.value {
+            ValueType::Atom(x) => {
+                return vec![AtomScheme {
+                    name: self.name.clone(),
+                    value: *x,
+                }]
+            }
+            ValueType::Object(object) => object.atom_schemes(),
         };
-        let mut names = vec![];
-        for post_name in &post_names {
-            names.push(format!("{}.{}", self.name, post_name));
+        let mut atoms = vec![];
+        for post_atom in &post_atoms {
+            let name = format!("{}.{}", self.name, post_atom.name);
+            atoms.push(AtomScheme {
+                name,
+                value: post_atom.value,
+            });
         }
-        names
+        atoms
     }
 
     pub fn atom_types(&self, types: &mut Vec<AtomType>) {
@@ -54,6 +63,12 @@ impl FieldScheme {
 pub enum ValueType {
     Atom(AtomType),
     Object(ObjectScheme),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct AtomScheme {
+    pub name: String,
+    pub value: AtomType,
 }
 
 #[derive(Debug, Clone)]

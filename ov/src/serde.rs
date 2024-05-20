@@ -11,7 +11,7 @@ pub trait OvDeserialize: Sized {
 
 #[cfg(test)]
 mod tests {
-    use crate::format::{AtomType, FieldScheme, ValueType};
+    use crate::format::{AtomScheme, AtomType, FieldScheme, ValueType};
 
     use super::*;
 
@@ -167,12 +167,31 @@ mod tests {
             }
         );
 
+        dbg!(scheme.atom_schemes());
         assert_eq!(
-            scheme.child_names(),
-            ["a", "b.a", "b.b", "b.c", "c"]
-                .into_iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>()
+            scheme.atom_schemes(),
+            [
+                AtomScheme {
+                    name: "a".to_owned(),
+                    value: AtomType::U64,
+                },
+                AtomScheme {
+                    name: "b.a".to_owned(),
+                    value: AtomType::Bytes,
+                },
+                AtomScheme {
+                    name: "b.b".to_owned(),
+                    value: AtomType::I64,
+                },
+                AtomScheme {
+                    name: "b.c".to_owned(),
+                    value: AtomType::Bytes,
+                },
+                AtomScheme {
+                    name: "c".to_owned(),
+                    value: AtomType::F64,
+                },
+            ]
         );
 
         let mut values = vec![];
