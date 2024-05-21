@@ -7,25 +7,19 @@ use strum::EnumDiscriminants;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtomScheme {
     pub name: String,
-    pub value: AtomOptionType,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AtomOptionType {
     pub value: AtomType,
-    pub nullable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValueRow {
-    atoms: Vec<AtomOptionValue>,
+    atoms: Vec<Option<AtomValue>>,
 }
 impl ValueRow {
-    pub fn new(atoms: Vec<AtomOptionValue>) -> Self {
+    pub fn new(atoms: Vec<Option<AtomValue>>) -> Self {
         Self { atoms }
     }
 
-    pub fn atoms(&self) -> &Vec<AtomOptionValue> {
+    pub fn atoms(&self) -> &Vec<Option<AtomValue>> {
         &self.atoms
     }
 
@@ -35,17 +29,14 @@ impl ValueRow {
     pub fn encode(&self, buf: &mut Vec<u8>) {
         for atom in &self.atoms {
             let atom = match atom {
-                AtomOptionValue::Solid(x) => x,
-                AtomOptionValue::Option(x) => match x {
-                    Some(x) => {
-                        buf.write_fixedint(Self::IS_SOME).unwrap();
-                        x
-                    }
-                    None => {
-                        buf.write_fixedint(Self::IS_NONE).unwrap();
-                        continue;
-                    }
-                },
+                Some(x) => {
+                    buf.write_fixedint(Self::IS_SOME).unwrap();
+                    x
+                }
+                None => {
+                    buf.write_fixedint(Self::IS_NONE).unwrap();
+                    continue;
+                }
             };
             atom.encode(buf);
         }
@@ -54,40 +45,19 @@ impl ValueRow {
     pub fn decode(atom_schemes: &[AtomScheme], buf: &mut std::io::Cursor<&[u8]>) -> Option<Self> {
         let mut atoms = vec![];
         for ty in atom_schemes.iter().map(|x| x.value) {
-            if ty.nullable {
-                let is_some: u8 = buf.read_fixedint().ok()?;
-                match is_some {
-                    Self::IS_NONE => {
-                        atoms.push(AtomOptionValue::Option(None));
-                        continue;
-                    }
-                    Self::IS_SOME => (),
-                    _ => return None,
+            let is_some: u8 = buf.read_fixedint().ok()?;
+            match is_some {
+                Self::IS_NONE => {
+                    atoms.push(None);
+                    continue;
                 }
+                Self::IS_SOME => (),
+                _ => return None,
             }
-            let atom = AtomValue::decode(ty.value, buf)?;
-            let atom = if ty.nullable {
-                AtomOptionValue::Option(Some(atom))
-            } else {
-                AtomOptionValue::Solid(atom)
-            };
-            atoms.push(atom);
+            let atom = AtomValue::decode(ty, buf)?;
+            atoms.push(Some(atom));
         }
         Some(Self { atoms })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum AtomOptionValue {
-    Solid(AtomValue),
-    Option(Option<AtomValue>),
-}
-impl AtomOptionValue {
-    pub fn atom_value(&self) -> Option<&AtomValue> {
-        match self {
-            AtomOptionValue::Solid(x) => Some(x),
-            AtomOptionValue::Option(x) => x.as_ref(),
-        }
     }
 }
 

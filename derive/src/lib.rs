@@ -25,27 +25,18 @@ fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
     for field in &serde.fields {
         let double_quoted_field_name = field.ident.to_string();
         let FieldScheme = field_scheme_type();
-        let ValueTypeValue = value_type_type();
+        let ValueType = value_type_type();
         let value = match &field.ty {
             FieldType::Object(x) => {
                 quote::quote! {
-                    #ValueTypeValue::Object(<#x as #OvScheme>::object_scheme())
+                    #ValueType::Object(<#x as #OvScheme>::object_scheme())
                 }
             }
             FieldType::Atom(x) => {
-                let AtomTypeArm = x.value.atom_type_arm();
+                let AtomTypeArm = x.atom_type_arm();
                 let AtomType = atom_type_type();
-                let nullable = if x.nullable {
-                    quote::quote! { true }
-                } else {
-                    quote::quote! { false }
-                };
-                let AtomOptionType = atom_option_type_type();
                 quote::quote! {
-                    #ValueTypeValue::Atom(#AtomOptionType {
-                        value: #AtomType::#AtomTypeArm,
-                        nullable: #nullable,
-                    })
+                    #ValueType::Atom(#AtomType::#AtomTypeArm)
                 }
             }
         };
@@ -73,98 +64,143 @@ fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
 #[allow(non_snake_case)]
 fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
     let OvSerialize = ov_serialize_type();
-    let AtomOptionValue = atom_option_value_type();
     let mut write_values = vec![];
+    let AtomValue = atom_value_type();
     for field in &serde.fields {
         let field_name = &field.ident;
         let write_value = match &field.ty {
-            FieldType::Object(_) => {
-                quote::quote! { #OvSerialize::serialize(&self.#field_name, values); }
+            FieldType::Object(Name) => {
+                if field.nullable {
+                    quote::quote! {
+                        if let Some(x) = self.#field_name.as_ref() {
+                            #OvSerialize::serialize(x, values);
+                        } else {
+                            <#Name as OvSerialize>::fill_nulls(values);
+                        }
+                    }
+                } else {
+                    quote::quote! { #OvSerialize::serialize(&self.#field_name, values); }
+                }
             }
             FieldType::Atom(atom_type) => {
-                let AtomTypeArm = atom_type.value.atom_type_arm();
-                let AtomValue = atom_value_type();
-                let convert_type = |x: proc_macro2::TokenStream| match &atom_type.value {
-                    HighLevelAtomType::String => quote::quote! { #x.as_bytes().to_owned() },
+                let AtomTypeArm = atom_type.atom_type_arm();
+                let convert_type = |x: proc_macro2::TokenStream| match &atom_type {
                     HighLevelAtomType::Compatible(AtomType::String)
                     | HighLevelAtomType::Compatible(AtomType::Bytes) => {
                         quote::quote! { #x.clone() }
                     }
                     HighLevelAtomType::Compatible(_) => quote::quote! { #x as _ },
                 };
-                let atom_option_value = if atom_type.nullable {
+                let atom_option_value = if field.nullable {
                     let convert_type = convert_type(quote::quote! { x });
-                    quote::quote! { #AtomOptionValue::Option(self.#field_name.map(|x| #AtomValue::#AtomTypeArm(#convert_type))) }
+                    match &atom_type {
+                        HighLevelAtomType::Compatible(AtomType::String)
+                        | HighLevelAtomType::Compatible(AtomType::Bytes) => {
+                            quote::quote! { self.#field_name.as_ref().map(|x| #AtomValue::#AtomTypeArm(#convert_type)) }
+                        }
+                        HighLevelAtomType::Compatible(_) => {
+                            quote::quote! { self.#field_name.map(|x| #AtomValue::#AtomTypeArm(#convert_type)) }
+                        }
+                    }
                 } else {
                     let convert_type = convert_type(quote::quote! { self.#field_name });
-                    quote::quote! { #AtomOptionValue::Solid(#AtomValue::#AtomTypeArm(#convert_type)) }
+                    quote::quote! { Some(#AtomValue::#AtomTypeArm(#convert_type)) }
                 };
                 quote::quote! { values.push(#atom_option_value); }
             }
         };
         write_values.push(write_value);
     }
+
+    let mut fill_nulls = vec![];
+    for field in &serde.fields {
+        let fill_null = match &field.ty {
+            FieldType::Object(Name) => {
+                quote::quote! { <#Name as OvSerialize>::fill_nulls(values); }
+            }
+            FieldType::Atom(_) => {
+                quote::quote! { values.push(None); }
+            }
+        };
+        fill_nulls.push(fill_null);
+    }
+
     let Name = &serde.name;
     quote::quote! {
         impl #OvSerialize for #Name {
-            fn serialize(&self, values: &mut Vec<#AtomOptionValue>) {
+            fn serialize(&self, values: &mut Vec<Option<#AtomValue>>) {
                 #( #write_values )*
+            }
+
+            fn fill_nulls(values: &mut Vec<Option<#AtomValue>>) {
+                #( #fill_nulls )*
             }
         }
     }
 }
 #[allow(non_snake_case)]
 fn impl_deserialize(serde: &Serde) -> proc_macro2::TokenStream {
-    let mut fields = vec![];
+    let OvDeserialize = ov_deserialize_type();
+    let mut fetch_values = vec![];
     for field in &serde.fields {
         let field_name = &field.ident;
-        let field = match &field.ty {
-            FieldType::Object(Name) => quote::quote! { #field_name: #Name::deserialize(values)?, },
-            FieldType::Atom(x) => {
-                let first_atom_value = quote::quote! { values.first()?.atom_value() };
-
-                let atom_type_get = x.value.atom_type_get();
-                let convert_type = |atom_value: proc_macro2::TokenStream| match &x.value {
-                    HighLevelAtomType::String => {
-                        quote::quote! { String::from_utf8(#atom_value.#atom_type_get?.to_owned()).ok()? }
-                    }
-                    HighLevelAtomType::Compatible(AtomType::String)
-                    | HighLevelAtomType::Compatible(AtomType::Bytes) => {
-                        quote::quote! { #atom_value.#atom_type_get?.to_owned() }
-                    }
-                    HighLevelAtomType::Compatible(_) => {
-                        quote::quote! { #atom_value.#atom_type_get? as _ }
-                    }
-                };
-                let value = if x.nullable {
-                    let convert_type = convert_type(quote::quote! { x });
-                    quote::quote! {
-                        match #first_atom_value {
-                            Some(x) => Some(#convert_type),
-                            None => None,
-                        }
-                    }
-                } else {
-                    let convert_type = convert_type(quote::quote! { #first_atom_value? });
-                    quote::quote! { #convert_type }
-                };
+        let fetch_value = match &field.ty {
+            FieldType::Object(Name) => {
+                quote::quote! { let #field_name = <#Name as #OvDeserialize>::deserialize(__values); }
+            }
+            FieldType::Atom(_) => {
                 quote::quote! {
-                    #field_name: {
-                        let value = #value;
-                        *values = &values[1..];
+                    let #field_name = {
+                        let value = __values.first()?.as_ref();
+                        *__values = &__values[1..];
                         value
-                    },
+                    };
                 }
             }
         };
-        fields.push(field);
+        fetch_values.push(fetch_value);
+    }
+    let mut fields = vec![];
+    for field in &serde.fields {
+        let field_name = &field.ident;
+        let field_value = match &field.ty {
+            FieldType::Object(_) => {
+                if field.nullable {
+                    quote::quote! { #field_name }
+                } else {
+                    quote::quote! { #field_name? }
+                }
+            }
+            FieldType::Atom(x) => {
+                let atom_type_get = x.atom_type_get();
+                let convert_type = |atom_value: proc_macro2::TokenStream| match &x {
+                    HighLevelAtomType::Compatible(AtomType::String)
+                    | HighLevelAtomType::Compatible(AtomType::Bytes) => {
+                        quote::quote! { #atom_value.#atom_type_get.unwrap().to_owned() }
+                    }
+                    HighLevelAtomType::Compatible(_) => {
+                        quote::quote! { #atom_value.#atom_type_get.unwrap() as _ }
+                    }
+                };
+                if field.nullable {
+                    let convert_type = convert_type(quote::quote! { x });
+                    quote::quote! {
+                        #field_name.map(|x| #convert_type)
+                    }
+                } else {
+                    let convert_type = convert_type(quote::quote! { #field_name? });
+                    quote::quote! { #convert_type }
+                }
+            }
+        };
+        fields.push(quote::quote! { #field_name: #field_value, });
     }
     let Name = &serde.name;
-    let OvDeserialize = ov_deserialize_type();
-    let AtomOptionValue = atom_option_value_type();
+    let AtomValue = atom_value_type();
     quote::quote! {
         impl #OvDeserialize for #Name {
-            fn deserialize(values: &mut &[#AtomOptionValue]) -> Option<Self> {
+            fn deserialize(__values: &mut &[Option<#AtomValue>]) -> Option<Self> {
+                #( #fetch_values )*
                 Some(Self {
                     #( #fields )*
                 })
@@ -206,16 +242,6 @@ fn value_type_type() -> proc_macro2::TokenStream {
 fn atom_type_type() -> proc_macro2::TokenStream {
     quote::quote! {
         ov::format::AtomType
-    }
-}
-fn atom_option_type_type() -> proc_macro2::TokenStream {
-    quote::quote! {
-        ov::format::AtomOptionType
-    }
-}
-fn atom_option_value_type() -> proc_macro2::TokenStream {
-    quote::quote! {
-        ov::format::AtomOptionValue
     }
 }
 fn atom_value_type() -> proc_macro2::TokenStream {
@@ -268,71 +294,49 @@ impl syn::parse::Parse for Serde {
                     ),
                 ));
             };
-            let ty = field_type(&field.ty)?;
+            let (ty, nullable) = field_type(&field.ty)?;
             fields.push(Field {
                 ident: ident.clone(),
                 ty,
+                nullable,
             })
         }
         Ok(Self { name, fields })
     }
 }
 
-fn field_type(ty: &syn::Type) -> syn::Result<FieldType> {
+fn field_type(ty: &syn::Type) -> syn::Result<(FieldType, bool)> {
     let (ty, nullable) = match extract_type_from_option(ty) {
         Some(ty) => (ty, true),
         None => (ty, false),
     };
     let str = quote::quote! { #ty }.to_string();
     let field_type = match str.as_str() {
-        "u8" | "u16" | "u32" | "u64" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::Compatible(AtomType::U64),
-            nullable,
-        }),
-        "i8" | "i16" | "i32" | "i64" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::Compatible(AtomType::I64),
-            nullable,
-        }),
-        "f32" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::Compatible(AtomType::F32),
-            nullable,
-        }),
-        "f64" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::Compatible(AtomType::F64),
-            nullable,
-        }),
-        "Vec < u8 >" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::Compatible(AtomType::Bytes),
-            nullable,
-        }),
-        // "String" => FieldType::Atom(HighLevelAtomOptionType {
-        //     value: HighLevelAtomType::String,
-        //     nullable,
-        // }),
-        "String" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::Compatible(AtomType::String),
-            nullable,
-        }),
+        "u8" | "u16" | "u32" | "u64" => {
+            FieldType::Atom(HighLevelAtomType::Compatible(AtomType::U64))
+        }
+        "i8" | "i16" | "i32" | "i64" => {
+            FieldType::Atom(HighLevelAtomType::Compatible(AtomType::I64))
+        }
+        "f32" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::F32)),
+        "f64" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::F64)),
+        "Vec < u8 >" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::Bytes)),
+        "String" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::String)),
         _ => FieldType::Object(ty.clone()),
     };
-    Ok(field_type)
+    Ok((field_type, nullable))
 }
 
 struct Field {
     pub ident: syn::Ident,
     pub ty: FieldType,
+    pub nullable: bool,
 }
 enum FieldType {
     Object(syn::Type),
-    Atom(HighLevelAtomOptionType),
+    Atom(HighLevelAtomType),
 }
-struct HighLevelAtomOptionType {
-    value: HighLevelAtomType,
-    nullable: bool,
-}
-#[allow(dead_code)]
 enum HighLevelAtomType {
-    String,
     Compatible(AtomType),
 }
 impl HighLevelAtomType {
@@ -341,7 +345,7 @@ impl HighLevelAtomType {
             HighLevelAtomType::Compatible(AtomType::String) => {
                 quote::quote! { String }
             }
-            HighLevelAtomType::String | HighLevelAtomType::Compatible(AtomType::Bytes) => {
+            HighLevelAtomType::Compatible(AtomType::Bytes) => {
                 quote::quote! { Bytes }
             }
             HighLevelAtomType::Compatible(AtomType::F32) => {
@@ -364,7 +368,7 @@ impl HighLevelAtomType {
             HighLevelAtomType::Compatible(AtomType::String) => {
                 quote::quote! { string() }
             }
-            HighLevelAtomType::String | HighLevelAtomType::Compatible(AtomType::Bytes) => {
+            HighLevelAtomType::Compatible(AtomType::Bytes) => {
                 quote::quote! { bytes() }
             }
             HighLevelAtomType::Compatible(AtomType::F32) => {

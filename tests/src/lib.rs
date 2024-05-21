@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use ov::{
-        format::{AtomOptionValue, AtomValue},
+        format::AtomValue,
         io::{OvReader, OvWriter},
         serde::{OvDeserialize, OvSerialize},
     };
@@ -12,24 +12,28 @@ mod tests {
         #[derive(Debug, OvSerde, PartialEq)]
         pub struct A {
             a: u16,
-            b: B,
+            b: Option<B>,
             c: Option<f64>,
+            d: B,
         }
         #[derive(Debug, OvSerde, PartialEq)]
         struct B {
             a: Vec<u8>,
             b: i64,
             c: String,
+            d: Option<Vec<u8>>,
         }
 
         let a = A {
             a: 1,
-            b: B {
+            b: None,
+            c: Some(3.),
+            d: B {
                 a: b"hello".to_vec(),
                 b: 2,
                 c: "world".to_owned(),
+                d: None,
             },
-            c: Some(3.),
         };
 
         let mut values = vec![];
@@ -37,12 +41,16 @@ mod tests {
         assert_eq!(
             values,
             [
-                AtomOptionValue::Solid(AtomValue::U64(1)),
-                AtomOptionValue::Solid(AtomValue::Bytes(b"hello".to_vec())),
-                AtomOptionValue::Solid(AtomValue::I64(2)),
-                // AtomOptionValue::Solid(AtomValue::Bytes(b"world".to_vec())),
-                AtomOptionValue::Solid(AtomValue::String("world".to_owned())),
-                AtomOptionValue::Option(Some(AtomValue::F64(3.0))),
+                Some(AtomValue::U64(1)),
+                None,
+                None,
+                None,
+                None,
+                Some(AtomValue::F64(3.0)),
+                Some(AtomValue::Bytes(b"hello".to_vec())),
+                Some(AtomValue::I64(2)),
+                Some(AtomValue::String("world".to_owned())),
+                None,
             ]
         );
 

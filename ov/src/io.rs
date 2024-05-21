@@ -110,7 +110,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        format::{AtomOptionType, AtomOptionValue, AtomType, AtomValue},
+        format::{AtomType, AtomValue},
         serde::{FieldScheme, ObjectScheme, ValueType},
     };
 
@@ -129,41 +129,42 @@ mod tests {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomOptionType {
-                                value: AtomType::I64,
-                                nullable: false,
-                            }),
+                            value: ValueType::Atom(AtomType::I64),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Atom(AtomOptionType {
-                                value: AtomType::F64,
-                                nullable: false,
-                            }),
+                            value: ValueType::Atom(AtomType::F64),
                         },
                     ],
                 }
             }
         }
         impl OvSerialize for A {
-            fn serialize(&self, values: &mut Vec<AtomOptionValue>) {
-                values.push(AtomOptionValue::Solid(AtomValue::I64(self.a)));
-                values.push(AtomOptionValue::Solid(AtomValue::F64(self.b)));
+            fn serialize(&self, values: &mut Vec<Option<AtomValue>>) {
+                values.push(Some(AtomValue::I64(self.a)));
+                values.push(Some(AtomValue::F64(self.b)));
+            }
+
+            fn fill_nulls(values: &mut Vec<Option<AtomValue>>) {
+                values.push(None);
+                values.push(None);
             }
         }
         impl OvDeserialize for A {
-            fn deserialize(values: &mut &[AtomOptionValue]) -> Option<Self> {
+            fn deserialize(values: &mut &[Option<AtomValue>]) -> Option<Self> {
+                let a = {
+                    let value = values.first()?.as_ref();
+                    *values = &values[1..];
+                    value
+                };
+                let b = {
+                    let value = values.first()?.as_ref();
+                    *values = &values[1..];
+                    value
+                };
                 Some(Self {
-                    a: {
-                        let value = values.first()?.atom_value()?.i64()? as _;
-                        *values = &values[1..];
-                        value
-                    },
-                    b: {
-                        let value = values.first()?.atom_value()?.f64()?;
-                        *values = &values[1..];
-                        value
-                    },
+                    a: a?.i64().unwrap() as _,
+                    b: b?.f64().unwrap() as _,
                 })
             }
         }
