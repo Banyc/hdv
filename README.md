@@ -2,4 +2,4 @@
 
 Object values.
 
-CSV but with a tree-like header.
+CSV but can be parsed in a multi-layer `struct`.
