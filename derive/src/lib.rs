@@ -86,7 +86,10 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
                 let AtomValue = atom_value_type();
                 let convert_type = |x: proc_macro2::TokenStream| match &atom_type.value {
                     HighLevelAtomType::String => quote::quote! { #x.as_bytes().to_owned() },
-                    HighLevelAtomType::Compatible(AtomType::Bytes) => quote::quote! { #x.clone() },
+                    HighLevelAtomType::Compatible(AtomType::String)
+                    | HighLevelAtomType::Compatible(AtomType::Bytes) => {
+                        quote::quote! { #x.clone() }
+                    }
                     HighLevelAtomType::Compatible(_) => quote::quote! { #x as _ },
                 };
                 let atom_option_value = if atom_type.nullable {
@@ -125,7 +128,8 @@ fn impl_deserialize(serde: &Serde) -> proc_macro2::TokenStream {
                     HighLevelAtomType::String => {
                         quote::quote! { String::from_utf8(#atom_value.#atom_type_get?.to_owned()).ok()? }
                     }
-                    HighLevelAtomType::Compatible(AtomType::Bytes) => {
+                    HighLevelAtomType::Compatible(AtomType::String)
+                    | HighLevelAtomType::Compatible(AtomType::Bytes) => {
                         quote::quote! { #atom_value.#atom_type_get?.to_owned() }
                     }
                     HighLevelAtomType::Compatible(_) => {
@@ -301,8 +305,12 @@ fn field_type(ty: &syn::Type) -> syn::Result<FieldType> {
             value: HighLevelAtomType::Compatible(AtomType::Bytes),
             nullable,
         }),
+        // "String" => FieldType::Atom(HighLevelAtomOptionType {
+        //     value: HighLevelAtomType::String,
+        //     nullable,
+        // }),
         "String" => FieldType::Atom(HighLevelAtomOptionType {
-            value: HighLevelAtomType::String,
+            value: HighLevelAtomType::Compatible(AtomType::String),
             nullable,
         }),
         _ => FieldType::Object(ty.clone()),
@@ -322,6 +330,7 @@ struct HighLevelAtomOptionType {
     value: HighLevelAtomType,
     nullable: bool,
 }
+#[allow(dead_code)]
 enum HighLevelAtomType {
     String,
     Compatible(AtomType),
@@ -329,6 +338,9 @@ enum HighLevelAtomType {
 impl HighLevelAtomType {
     pub fn atom_type_arm(&self) -> proc_macro2::TokenStream {
         match self {
+            HighLevelAtomType::Compatible(AtomType::String) => {
+                quote::quote! { String }
+            }
             HighLevelAtomType::String | HighLevelAtomType::Compatible(AtomType::Bytes) => {
                 quote::quote! { Bytes }
             }
@@ -349,6 +361,9 @@ impl HighLevelAtomType {
 
     pub fn atom_type_get(&self) -> proc_macro2::TokenStream {
         match self {
+            HighLevelAtomType::Compatible(AtomType::String) => {
+                quote::quote! { string() }
+            }
             HighLevelAtomType::String | HighLevelAtomType::Compatible(AtomType::Bytes) => {
                 quote::quote! { bytes() }
             }

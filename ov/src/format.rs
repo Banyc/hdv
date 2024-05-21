@@ -95,6 +95,7 @@ impl AtomOptionValue {
 #[strum_discriminants(derive(Serialize, Deserialize))]
 #[strum_discriminants(name(AtomType))]
 pub enum AtomValue {
+    String(String),
     Bytes(Vec<u8>),
     U64(u64),
     I64(i64),
@@ -102,34 +103,36 @@ pub enum AtomValue {
     F64(f64),
 }
 impl AtomValue {
+    pub fn string(&self) -> Option<&String> {
+        let Self::String(x) = self else {
+            return None;
+        };
+        Some(x)
+    }
     pub fn bytes(&self) -> Option<&Vec<u8>> {
         let Self::Bytes(x) = self else {
             return None;
         };
         Some(x)
     }
-
     pub fn u64(&self) -> Option<u64> {
         let Self::U64(x) = self else {
             return None;
         };
         Some(*x)
     }
-
     pub fn i64(&self) -> Option<i64> {
         let Self::I64(x) = self else {
             return None;
         };
         Some(*x)
     }
-
     pub fn f32(&self) -> Option<f32> {
         let Self::F32(x) = self else {
             return None;
         };
         Some(*x)
     }
-
     pub fn f64(&self) -> Option<f64> {
         let Self::F64(x) = self else {
             return None;
@@ -139,6 +142,11 @@ impl AtomValue {
 
     pub fn encode(&self, buf: &mut Vec<u8>) {
         match &self {
+            AtomValue::String(x) => {
+                let bytes = x.as_bytes();
+                buf.write_varint(bytes.len()).unwrap();
+                buf.write_all(bytes).unwrap();
+            }
             AtomValue::Bytes(x) => {
                 buf.write_varint(x.len()).unwrap();
                 buf.write_all(x).unwrap();
@@ -160,6 +168,12 @@ impl AtomValue {
 
     pub fn decode(ty: AtomType, buf: &mut std::io::Cursor<&[u8]>) -> Option<Self> {
         match ty {
+            AtomType::String => {
+                let len: usize = buf.read_varint().ok()?;
+                let mut bytes = vec![0; len];
+                buf.read_exact(&mut bytes).ok()?;
+                Some(Self::String(String::from_utf8(bytes).ok()?))
+            }
             AtomType::Bytes => {
                 let len: usize = buf.read_varint().ok()?;
                 let mut bytes = vec![0; len];

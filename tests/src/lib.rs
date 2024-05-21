@@ -40,7 +40,8 @@ mod tests {
                 AtomOptionValue::Solid(AtomValue::U64(1)),
                 AtomOptionValue::Solid(AtomValue::Bytes(b"hello".to_vec())),
                 AtomOptionValue::Solid(AtomValue::I64(2)),
-                AtomOptionValue::Solid(AtomValue::Bytes(b"world".to_vec())),
+                // AtomOptionValue::Solid(AtomValue::Bytes(b"world".to_vec())),
+                AtomOptionValue::Solid(AtomValue::String("world".to_owned())),
                 AtomOptionValue::Option(Some(AtomValue::F64(3.0))),
             ]
         );
