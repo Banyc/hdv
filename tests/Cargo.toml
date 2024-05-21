@@ -1,0 +1,8 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ov_derive = { path = "../derive" }
+ov = { path = "../ov" }

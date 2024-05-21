@@ -4,7 +4,7 @@ use integer_encoding::{VarIntReader, VarIntWriter};
 
 use crate::{
     format::{ObjectScheme, ObjectValue},
-    serde::{OvDeserialize, OvSerialize},
+    serde::{OvDeserialize, OvScheme, OvSerialize},
 };
 
 #[derive(Debug)]
@@ -27,13 +27,13 @@ impl<W, V> OvWriter<W, V> {
 impl<W, O> OvWriter<W, O>
 where
     W: std::io::Write,
-    O: OvSerialize,
+    O: OvSerialize + OvScheme,
 {
     pub fn write(&mut self, object: &O) -> std::io::Result<()> {
         if !self.has_written_header {
             self.has_written_header = true;
 
-            let header = object.object_scheme();
+            let header = O::object_scheme();
             let header = bincode::serialize(&header).unwrap();
             self.write.write_varint(header.len())?;
             self.write.write_all(&header)?;
@@ -76,7 +76,7 @@ impl<R, V> OvReader<R, V> {
 impl<R, O> OvReader<R, O>
 where
     R: std::io::Read,
-    O: OvDeserialize,
+    O: OvDeserialize + OvScheme,
 {
     pub fn read(&mut self) -> std::io::Result<O> {
         let Some(scheme) = &self.scheme else {
@@ -85,6 +85,9 @@ where
             self.read.read_exact(&mut buf)?;
             let scheme =
                 bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
+            if scheme != O::object_scheme() {
+                return Err(std::io::ErrorKind::InvalidInput)?;
+            }
             self.scheme = Some(scheme);
 
             return self.read();
@@ -105,7 +108,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::format::{AtomType, AtomValue, FieldScheme, ValueType};
+    use crate::format::{
+        AtomOptionType, AtomOptionValue, AtomType, AtomValue, FieldScheme, ValueType,
+    };
 
     use super::*;
 
@@ -116,37 +121,44 @@ mod tests {
             a: i64,
             b: f64,
         }
-        impl OvSerialize for A {
-            fn object_scheme(&self) -> ObjectScheme {
+        impl OvScheme for A {
+            fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomType::I64),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::I64,
+                                nullable: false,
+                            }),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Atom(AtomType::F64),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::F64,
+                                nullable: false,
+                            }),
                         },
                     ],
                 }
             }
-
-            fn serialize(&self, values: &mut Vec<AtomValue>) {
-                values.push(AtomValue::I64(self.a));
-                values.push(AtomValue::F64(self.b));
+        }
+        impl OvSerialize for A {
+            fn serialize(&self, values: &mut Vec<AtomOptionValue>) {
+                values.push(AtomOptionValue::Solid(AtomValue::I64(self.a)));
+                values.push(AtomOptionValue::Solid(AtomValue::F64(self.b)));
             }
         }
         impl OvDeserialize for A {
-            fn deserialize(values: &mut &[AtomValue]) -> Option<Self> {
+            fn deserialize(values: &mut &[AtomOptionValue]) -> Option<Self> {
                 Some(Self {
                     a: {
-                        let value = values.first()?.i64()? as _;
+                        let value = values.first()?.atom_value()?.i64()? as _;
                         *values = &values[1..];
                         value
                     },
                     b: {
-                        let value = values.first()?.f64()?;
+                        let value = values.first()?.atom_value()?.f64()?;
                         *values = &values[1..];
                         value
                     },

@@ -17,7 +17,7 @@ impl ObjectScheme {
         atoms
     }
 
-    pub fn atom_types(&self, types: &mut Vec<AtomType>) {
+    pub fn atom_types(&self, types: &mut Vec<AtomOptionType>) {
         for field in &self.fields {
             field.atom_types(types);
         }
@@ -51,7 +51,7 @@ impl FieldScheme {
         atoms
     }
 
-    pub fn atom_types(&self, types: &mut Vec<AtomType>) {
+    pub fn atom_types(&self, types: &mut Vec<AtomOptionType>) {
         match &self.value {
             ValueType::Atom(x) => types.push(*x),
             ValueType::Object(object) => object.atom_types(types),
@@ -61,31 +61,53 @@ impl FieldScheme {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValueType {
-    Atom(AtomType),
+    Atom(AtomOptionType),
     Object(ObjectScheme),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtomScheme {
     pub name: String,
-    pub value: AtomType,
+    pub value: AtomOptionType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AtomOptionType {
+    pub value: AtomType,
+    pub nullable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ObjectValue {
-    atoms: Vec<AtomValue>,
+    atoms: Vec<AtomOptionValue>,
 }
 impl ObjectValue {
-    pub fn new(atoms: Vec<AtomValue>) -> Self {
+    pub fn new(atoms: Vec<AtomOptionValue>) -> Self {
         Self { atoms }
     }
 
-    pub fn atoms(&self) -> &Vec<AtomValue> {
+    pub fn atoms(&self) -> &Vec<AtomOptionValue> {
         &self.atoms
     }
 
+    const IS_NONE: u8 = 0;
+    const IS_SOME: u8 = 1;
+
     pub fn encode(&self, buf: &mut Vec<u8>) {
         for atom in &self.atoms {
+            let atom = match atom {
+                AtomOptionValue::Solid(x) => x,
+                AtomOptionValue::Option(x) => match x {
+                    Some(x) => {
+                        buf.write_fixedint(Self::IS_SOME).unwrap();
+                        x
+                    }
+                    None => {
+                        buf.write_fixedint(Self::IS_NONE).unwrap();
+                        continue;
+                    }
+                },
+            };
             atom.encode(buf);
         }
     }
@@ -95,10 +117,40 @@ impl ObjectValue {
         scheme.atom_types(&mut atom_types);
         let mut atoms = vec![];
         for ty in atom_types {
-            let atom = AtomValue::decode(ty, buf)?;
+            if ty.nullable {
+                let is_some: u8 = buf.read_fixedint().ok()?;
+                match is_some {
+                    Self::IS_NONE => {
+                        atoms.push(AtomOptionValue::Option(None));
+                        continue;
+                    }
+                    Self::IS_SOME => (),
+                    _ => return None,
+                }
+            }
+            let atom = AtomValue::decode(ty.value, buf)?;
+            let atom = if ty.nullable {
+                AtomOptionValue::Option(Some(atom))
+            } else {
+                AtomOptionValue::Solid(atom)
+            };
             atoms.push(atom);
         }
         Some(Self { atoms })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AtomOptionValue {
+    Solid(AtomValue),
+    Option(Option<AtomValue>),
+}
+impl AtomOptionValue {
+    pub fn atom_value(&self) -> Option<&AtomValue> {
+        match self {
+            AtomOptionValue::Solid(x) => Some(x),
+            AtomOptionValue::Option(x) => x.as_ref(),
+        }
     }
 }
 

@@ -1,17 +1,20 @@
-use crate::format::{AtomValue, ObjectScheme};
+use crate::format::{AtomOptionValue, ObjectScheme};
+
+pub trait OvScheme {
+    fn object_scheme() -> ObjectScheme;
+}
 
 pub trait OvSerialize {
-    fn object_scheme(&self) -> ObjectScheme;
-    fn serialize(&self, values: &mut Vec<AtomValue>);
+    fn serialize(&self, values: &mut Vec<AtomOptionValue>);
 }
 
 pub trait OvDeserialize: Sized {
-    fn deserialize(values: &mut &[AtomValue]) -> Option<Self>;
+    fn deserialize(values: &mut &[AtomOptionValue]) -> Option<Self>;
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::format::{AtomScheme, AtomType, FieldScheme, ValueType};
+    use crate::format::{AtomOptionType, AtomScheme, AtomType, AtomValue, FieldScheme, ValueType};
 
     use super::*;
 
@@ -21,45 +24,56 @@ mod tests {
         struct A {
             a: u16,
             b: B,
-            c: f64,
+            c: Option<f64>,
         }
-        impl OvSerialize for A {
-            fn object_scheme(&self) -> ObjectScheme {
+        impl OvScheme for A {
+            fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomType::U64),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::U64,
+                                nullable: false,
+                            }),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Object(OvSerialize::object_scheme(&self.b)),
+                            value: ValueType::Object(<B as OvScheme>::object_scheme()),
                         },
                         FieldScheme {
                             name: "c".to_string(),
-                            value: ValueType::Atom(AtomType::F64),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::F64,
+                                nullable: true,
+                            }),
                         },
                     ],
                 }
             }
-
-            fn serialize(&self, values: &mut Vec<AtomValue>) {
-                values.push(AtomValue::U64(self.a as _));
+        }
+        impl OvSerialize for A {
+            #[allow(clippy::redundant_closure)]
+            fn serialize(&self, values: &mut Vec<AtomOptionValue>) {
+                values.push(AtomOptionValue::Solid(AtomValue::U64(self.a as _)));
                 OvSerialize::serialize(&self.b, values);
-                values.push(AtomValue::F64(self.c));
+                values.push(AtomOptionValue::Option(self.c.map(|x| AtomValue::F64(x))));
             }
         }
         impl OvDeserialize for A {
-            fn deserialize(values: &mut &[AtomValue]) -> Option<Self> {
+            fn deserialize(values: &mut &[AtomOptionValue]) -> Option<Self> {
                 Some(Self {
                     a: {
-                        let value = values.first()?.u64()? as _;
+                        let value = values.first()?.atom_value()?.u64()? as _;
                         *values = &values[1..];
                         value
                     },
                     b: B::deserialize(values)?,
                     c: {
-                        let value = values.first()?.f64()?;
+                        let value = match values.first()?.atom_value() {
+                            Some(x) => Some(x.f64()? as _),
+                            None => None,
+                        };
                         *values = &values[1..];
                         value
                     },
@@ -73,47 +87,61 @@ mod tests {
             b: i64,
             c: String,
         }
-        impl OvSerialize for B {
-            fn object_scheme(&self) -> ObjectScheme {
+        impl OvScheme for B {
+            fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomType::Bytes),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::Bytes,
+                                nullable: false,
+                            }),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Atom(AtomType::I64),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::I64,
+                                nullable: false,
+                            }),
                         },
                         FieldScheme {
                             name: "c".to_string(),
-                            value: ValueType::Atom(AtomType::Bytes),
+                            value: ValueType::Atom(AtomOptionType {
+                                value: AtomType::Bytes,
+                                nullable: false,
+                            }),
                         },
                     ],
                 }
             }
-
-            fn serialize(&self, values: &mut Vec<AtomValue>) {
-                values.push(AtomValue::Bytes(self.a.clone()));
-                values.push(AtomValue::I64(self.b));
-                values.push(AtomValue::Bytes(self.c.as_bytes().to_owned()));
+        }
+        impl OvSerialize for B {
+            fn serialize(&self, values: &mut Vec<AtomOptionValue>) {
+                values.push(AtomOptionValue::Solid(AtomValue::Bytes(self.a.clone())));
+                values.push(AtomOptionValue::Solid(AtomValue::I64(self.b)));
+                values.push(AtomOptionValue::Solid(AtomValue::Bytes(
+                    self.c.as_bytes().to_owned(),
+                )));
             }
         }
         impl OvDeserialize for B {
-            fn deserialize(values: &mut &[AtomValue]) -> Option<Self> {
+            fn deserialize(values: &mut &[AtomOptionValue]) -> Option<Self> {
                 Some(Self {
                     a: {
-                        let value = values.first()?.bytes()?.to_owned();
+                        let value = values.first()?.atom_value()?.bytes()?.to_owned();
                         *values = &values[1..];
                         value
                     },
                     b: {
-                        let value = values.first()?.i64()?;
+                        let value = values.first()?.atom_value()?.i64()?;
                         *values = &values[1..];
                         value
                     },
                     c: {
-                        let value = String::from_utf8(values.first()?.bytes()?.to_owned()).ok()?;
+                        let value =
+                            String::from_utf8(values.first()?.atom_value()?.bytes()?.to_owned())
+                                .ok()?;
                         *values = &values[1..];
                         value
                     },
@@ -128,17 +156,20 @@ mod tests {
                 b: 2,
                 c: "world".to_owned(),
             },
-            c: 3.,
+            c: Some(3.),
         };
 
-        let scheme = a.object_scheme();
+        let scheme = A::object_scheme();
         assert_eq!(
             scheme,
             ObjectScheme {
                 fields: vec![
                     FieldScheme {
                         name: "a".to_owned(),
-                        value: ValueType::Atom(AtomType::U64),
+                        value: ValueType::Atom(AtomOptionType {
+                            value: AtomType::U64,
+                            nullable: false,
+                        }),
                     },
                     FieldScheme {
                         name: "b".to_owned(),
@@ -146,50 +177,76 @@ mod tests {
                             fields: vec![
                                 FieldScheme {
                                     name: "a".to_owned(),
-                                    value: ValueType::Atom(AtomType::Bytes),
+                                    value: ValueType::Atom(AtomOptionType {
+                                        value: AtomType::Bytes,
+                                        nullable: false,
+                                    }),
                                 },
                                 FieldScheme {
                                     name: "b".to_owned(),
-                                    value: ValueType::Atom(AtomType::I64),
+                                    value: ValueType::Atom(AtomOptionType {
+                                        value: AtomType::I64,
+                                        nullable: false,
+                                    }),
                                 },
                                 FieldScheme {
                                     name: "c".to_owned(),
-                                    value: ValueType::Atom(AtomType::Bytes),
+                                    value: ValueType::Atom(AtomOptionType {
+                                        value: AtomType::Bytes,
+                                        nullable: false,
+                                    }),
                                 },
                             ]
                         }),
                     },
                     FieldScheme {
                         name: "c".to_owned(),
-                        value: ValueType::Atom(AtomType::F64),
+                        value: ValueType::Atom(AtomOptionType {
+                            value: AtomType::F64,
+                            nullable: true,
+                        }),
                     },
                 ]
             }
         );
 
-        dbg!(scheme.atom_schemes());
         assert_eq!(
             scheme.atom_schemes(),
             [
                 AtomScheme {
                     name: "a".to_owned(),
-                    value: AtomType::U64,
+                    value: AtomOptionType {
+                        value: AtomType::U64,
+                        nullable: false,
+                    },
                 },
                 AtomScheme {
                     name: "b.a".to_owned(),
-                    value: AtomType::Bytes,
+                    value: AtomOptionType {
+                        value: AtomType::Bytes,
+                        nullable: false,
+                    },
                 },
                 AtomScheme {
                     name: "b.b".to_owned(),
-                    value: AtomType::I64,
+                    value: AtomOptionType {
+                        value: AtomType::I64,
+                        nullable: false,
+                    },
                 },
                 AtomScheme {
                     name: "b.c".to_owned(),
-                    value: AtomType::Bytes,
+                    value: AtomOptionType {
+                        value: AtomType::Bytes,
+                        nullable: false,
+                    },
                 },
                 AtomScheme {
                     name: "c".to_owned(),
-                    value: AtomType::F64,
+                    value: AtomOptionType {
+                        value: AtomType::F64,
+                        nullable: true,
+                    },
                 },
             ]
         );
@@ -199,11 +256,11 @@ mod tests {
         assert_eq!(
             values,
             [
-                AtomValue::U64(1),
-                AtomValue::Bytes(b"hello".to_vec()),
-                AtomValue::I64(2),
-                AtomValue::Bytes(b"world".to_vec()),
-                AtomValue::F64(3.0),
+                AtomOptionValue::Solid(AtomValue::U64(1)),
+                AtomOptionValue::Solid(AtomValue::Bytes(b"hello".to_vec())),
+                AtomOptionValue::Solid(AtomValue::I64(2)),
+                AtomOptionValue::Solid(AtomValue::Bytes(b"world".to_vec())),
+                AtomOptionValue::Option(Some(AtomValue::F64(3.0))),
             ]
         );
 
