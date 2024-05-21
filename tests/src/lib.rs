@@ -2,7 +2,7 @@
 mod tests {
     use ov::{
         format::AtomValue,
-        io::{OvReader, OvWriter},
+        io::{OvBinReader, OvBinWriter},
         serde::{OvDeserialize, OvSerialize},
     };
     use ov_derive::OvSerde;
@@ -58,11 +58,11 @@ mod tests {
         assert_eq!(a, b);
 
         let mut buf = vec![];
-        let mut writer = OvWriter::new(&mut buf);
+        let mut writer = OvBinWriter::new(&mut buf);
         writer.write(&a).unwrap();
         writer.flush().unwrap();
 
-        let mut reader = OvReader::new(std::io::Cursor::new(&buf));
+        let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
         let a_: A = reader.read().unwrap();
         assert_eq!(a, a_);
     }

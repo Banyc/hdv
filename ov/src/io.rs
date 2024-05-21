@@ -8,13 +8,13 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct OvWriter<W, O> {
+pub struct OvBinWriter<W, O> {
     has_written_header: bool,
     write: W,
     buf: Vec<u8>,
     _object: PhantomData<O>,
 }
-impl<W, V> OvWriter<W, V> {
+impl<W, V> OvBinWriter<W, V> {
     pub fn new(write: W) -> Self {
         Self {
             has_written_header: false,
@@ -24,7 +24,7 @@ impl<W, V> OvWriter<W, V> {
         }
     }
 }
-impl<W, O> OvWriter<W, O>
+impl<W, O> OvBinWriter<W, O>
 where
     W: std::io::Write,
     O: OvSerialize + OvScheme,
@@ -58,13 +58,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct OvReader<R, O> {
+pub struct OvBinReader<R, O> {
     header: Option<Vec<AtomScheme>>,
     read: R,
     buf: Vec<u8>,
     _object: PhantomData<O>,
 }
-impl<R, V> OvReader<R, V> {
+impl<R, V> OvBinReader<R, V> {
     pub fn new(read: R) -> Self {
         Self {
             header: None,
@@ -74,7 +74,7 @@ impl<R, V> OvReader<R, V> {
         }
     }
 }
-impl<R, O> OvReader<R, O>
+impl<R, O> OvBinReader<R, O>
 where
     R: std::io::Read,
     O: OvDeserialize + OvScheme,
@@ -170,14 +170,14 @@ mod tests {
         }
 
         let mut buf = vec![];
-        let mut writer = OvWriter::new(&mut buf);
+        let mut writer = OvBinWriter::new(&mut buf);
         let a = A { a: 1, b: 2. };
         let b = A { a: 3, b: 4. };
         writer.write(&a).unwrap();
         writer.write(&b).unwrap();
         writer.flush().unwrap();
 
-        let mut reader = OvReader::new(std::io::Cursor::new(&buf));
+        let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
         let a_: A = reader.read().unwrap();
         let b_: A = reader.read().unwrap();
         assert_eq!(a, a_);
