@@ -1,4 +1,4 @@
-use crate::format::{AtomOptionValue, ObjectScheme};
+use crate::format::{AtomOptionType, AtomOptionValue, AtomScheme};
 
 pub trait OvScheme {
     fn object_scheme() -> ObjectScheme;
@@ -12,9 +12,70 @@ pub trait OvDeserialize: Sized {
     fn deserialize(values: &mut &[AtomOptionValue]) -> Option<Self>;
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ObjectScheme {
+    pub fields: Vec<FieldScheme>,
+}
+impl ObjectScheme {
+    pub fn atom_schemes(&self) -> Vec<AtomScheme> {
+        let mut atoms = vec![];
+        for field in &self.fields {
+            atoms.extend(field.atom_schemes().into_iter());
+        }
+        atoms
+    }
+
+    pub fn atom_types(&self, types: &mut Vec<AtomOptionType>) {
+        for field in &self.fields {
+            field.atom_types(types);
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct FieldScheme {
+    pub name: String,
+    pub value: ValueType,
+}
+impl FieldScheme {
+    pub fn atom_schemes(&self) -> Vec<AtomScheme> {
+        let post_atoms = match &self.value {
+            ValueType::Atom(x) => {
+                return vec![AtomScheme {
+                    name: self.name.clone(),
+                    value: *x,
+                }]
+            }
+            ValueType::Object(object) => object.atom_schemes(),
+        };
+        let mut atoms = vec![];
+        for post_atom in &post_atoms {
+            let name = format!("{}.{}", self.name, post_atom.name);
+            atoms.push(AtomScheme {
+                name,
+                value: post_atom.value,
+            });
+        }
+        atoms
+    }
+
+    pub fn atom_types(&self, types: &mut Vec<AtomOptionType>) {
+        match &self.value {
+            ValueType::Atom(x) => types.push(*x),
+            ValueType::Object(object) => object.atom_types(types),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ValueType {
+    Atom(AtomOptionType),
+    Object(ObjectScheme),
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::format::{AtomOptionType, AtomScheme, AtomType, AtomValue, FieldScheme, ValueType};
+    use crate::format::{AtomOptionType, AtomScheme, AtomType, AtomValue};
 
     use super::*;
 

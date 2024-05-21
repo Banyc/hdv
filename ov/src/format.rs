@@ -4,68 +4,7 @@ use integer_encoding::{FixedIntReader, FixedIntWriter, VarIntReader, VarIntWrite
 use serde::{Deserialize, Serialize};
 use strum::EnumDiscriminants;
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ObjectScheme {
-    pub fields: Vec<FieldScheme>,
-}
-impl ObjectScheme {
-    pub fn atom_schemes(&self) -> Vec<AtomScheme> {
-        let mut atoms = vec![];
-        for field in &self.fields {
-            atoms.extend(field.atom_schemes().into_iter());
-        }
-        atoms
-    }
-
-    pub fn atom_types(&self, types: &mut Vec<AtomOptionType>) {
-        for field in &self.fields {
-            field.atom_types(types);
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FieldScheme {
-    pub name: String,
-    pub value: ValueType,
-}
-impl FieldScheme {
-    pub fn atom_schemes(&self) -> Vec<AtomScheme> {
-        let post_atoms = match &self.value {
-            ValueType::Atom(x) => {
-                return vec![AtomScheme {
-                    name: self.name.clone(),
-                    value: *x,
-                }]
-            }
-            ValueType::Object(object) => object.atom_schemes(),
-        };
-        let mut atoms = vec![];
-        for post_atom in &post_atoms {
-            let name = format!("{}.{}", self.name, post_atom.name);
-            atoms.push(AtomScheme {
-                name,
-                value: post_atom.value,
-            });
-        }
-        atoms
-    }
-
-    pub fn atom_types(&self, types: &mut Vec<AtomOptionType>) {
-        match &self.value {
-            ValueType::Atom(x) => types.push(*x),
-            ValueType::Object(object) => object.atom_types(types),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ValueType {
-    Atom(AtomOptionType),
-    Object(ObjectScheme),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtomScheme {
     pub name: String,
     pub value: AtomOptionType,
@@ -78,10 +17,10 @@ pub struct AtomOptionType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ObjectValue {
+pub struct ValueRow {
     atoms: Vec<AtomOptionValue>,
 }
-impl ObjectValue {
+impl ValueRow {
     pub fn new(atoms: Vec<AtomOptionValue>) -> Self {
         Self { atoms }
     }
@@ -112,11 +51,9 @@ impl ObjectValue {
         }
     }
 
-    pub fn decode(scheme: &ObjectScheme, buf: &mut std::io::Cursor<&[u8]>) -> Option<Self> {
-        let mut atom_types = vec![];
-        scheme.atom_types(&mut atom_types);
+    pub fn decode(atom_schemes: &[AtomScheme], buf: &mut std::io::Cursor<&[u8]>) -> Option<Self> {
         let mut atoms = vec![];
-        for ty in atom_types {
+        for ty in atom_schemes.iter().map(|x| x.value) {
             if ty.nullable {
                 let is_some: u8 = buf.read_fixedint().ok()?;
                 match is_some {

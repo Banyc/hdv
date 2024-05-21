@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use integer_encoding::{VarIntReader, VarIntWriter};
 
 use crate::{
-    format::{ObjectScheme, ObjectValue},
+    format::{AtomScheme, ValueRow},
     serde::{OvDeserialize, OvScheme, OvSerialize},
 };
 
@@ -34,6 +34,7 @@ where
             self.has_written_header = true;
 
             let header = O::object_scheme();
+            let header = header.atom_schemes();
             let header = bincode::serialize(&header).unwrap();
             self.write.write_varint(header.len())?;
             self.write.write_all(&header)?;
@@ -42,9 +43,9 @@ where
         let mut atoms = vec![];
         object.serialize(&mut atoms);
 
-        let object = ObjectValue::new(atoms);
+        let row = ValueRow::new(atoms);
         self.buf.clear();
-        object.encode(&mut self.buf);
+        row.encode(&mut self.buf);
 
         self.write.write_varint(self.buf.len())?;
         self.write.write_all(&self.buf)?;
@@ -58,7 +59,7 @@ where
 
 #[derive(Debug)]
 pub struct OvReader<R, O> {
-    scheme: Option<ObjectScheme>,
+    header: Option<Vec<AtomScheme>>,
     read: R,
     buf: Vec<u8>,
     _object: PhantomData<O>,
@@ -66,7 +67,7 @@ pub struct OvReader<R, O> {
 impl<R, V> OvReader<R, V> {
     pub fn new(read: R) -> Self {
         Self {
-            scheme: None,
+            header: None,
             read,
             buf: vec![],
             _object: PhantomData,
@@ -79,16 +80,16 @@ where
     O: OvDeserialize + OvScheme,
 {
     pub fn read(&mut self) -> std::io::Result<O> {
-        let Some(scheme) = &self.scheme else {
+        let Some(header) = &self.header else {
             let len = self.read.read_varint()?;
             let mut buf = vec![0; len];
             self.read.read_exact(&mut buf)?;
-            let scheme =
+            let header =
                 bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
-            if scheme != O::object_scheme() {
+            if header != O::object_scheme().atom_schemes() {
                 return Err(std::io::ErrorKind::InvalidInput)?;
             }
-            self.scheme = Some(scheme);
+            self.header = Some(header);
 
             return self.read();
         };
@@ -98,18 +99,19 @@ where
         self.buf.clear();
         self.buf.extend(std::iter::repeat(0).take(len));
         self.read.read_exact(&mut self.buf)?;
-        let object = ObjectValue::decode(scheme, &mut std::io::Cursor::new(&self.buf))
+        let row = ValueRow::decode(header, &mut std::io::Cursor::new(&self.buf))
             .ok_or(std::io::ErrorKind::InvalidInput)?;
 
-        let object = O::deserialize(&mut object.atoms().as_slice()).unwrap();
+        let object = O::deserialize(&mut row.atoms().as_slice()).unwrap();
         Ok(object)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::format::{
-        AtomOptionType, AtomOptionValue, AtomType, AtomValue, FieldScheme, ValueType,
+    use crate::{
+        format::{AtomOptionType, AtomOptionValue, AtomType, AtomValue},
+        serde::{FieldScheme, ObjectScheme, ValueType},
     };
 
     use super::*;

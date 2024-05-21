@@ -186,17 +186,17 @@ fn ov_deserialize_type() -> proc_macro2::TokenStream {
 }
 fn object_scheme_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::format::ObjectScheme
+        ov::serde::ObjectScheme
     }
 }
 fn field_scheme_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::format::FieldScheme
+        ov::serde::FieldScheme
     }
 }
 fn value_type_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::format::ValueType
+        ov::serde::ValueType
     }
 }
 fn atom_type_type() -> proc_macro2::TokenStream {
