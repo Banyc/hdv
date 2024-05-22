@@ -1,6 +1,6 @@
 use polars::prelude::NamedFrom;
 
-use crate::format::{AtomScheme, AtomType, AtomValue};
+use crate::format::{AtomScheme, AtomType, ValueRow};
 
 use super::{bin::HdvBinRawReader, text::HdvTextRawReader};
 
@@ -21,7 +21,7 @@ where
                 _ => return Err(e),
             },
         };
-        rows.push(row.into_atoms());
+        rows.push(row);
     }
     let header = match reader.header() {
         Some(x) => x,
@@ -57,15 +57,12 @@ where
     Ok(hdv_polars_read(rows, header))
 }
 
-fn hdv_polars_read(
-    rows: Vec<Vec<Option<AtomValue>>>,
-    header: &[AtomScheme],
-) -> polars::frame::DataFrame {
+fn hdv_polars_read(rows: Vec<ValueRow>, header: &[AtomScheme]) -> polars::frame::DataFrame {
     let mut series_array = vec![];
     for (i, column_scheme) in header.iter().enumerate() {
         let mut column = vec![];
         for row in &rows {
-            let cell = row[i].clone();
+            let cell = row.atoms()[i].clone();
             column.push(cell);
         }
         let series = match column_scheme.value {

@@ -160,7 +160,7 @@ impl<R> HdvTextRawReader<R>
 where
     R: std::io::BufRead,
 {
-    pub fn read(&mut self) -> std::io::Result<Vec<Option<AtomValue>>> {
+    pub fn read(&mut self) -> std::io::Result<ValueRow> {
         let Some(header) = &self.header else {
             let header = read_header(&mut self.read, &mut self.buf)?;
             self.header = Some(header);
@@ -169,7 +169,7 @@ where
         };
 
         let row = read_row(&mut self.read, header, &mut self.buf)?;
-        Ok(row.into_atoms())
+        Ok(row)
     }
 }
 
@@ -376,11 +376,11 @@ mod tests {
         let a_ = reader.read().unwrap();
         let b_ = reader.read().unwrap();
         assert_eq!(
-            a_.as_slice(),
+            a_.atoms().as_slice(),
             [Some(AtomValue::I64(1)), Some(AtomValue::F64(2.0))]
         );
         assert_eq!(
-            b_.as_slice(),
+            b_.atoms().as_slice(),
             [Some(AtomValue::I64(3)), Some(AtomValue::F64(4.0))]
         );
 
