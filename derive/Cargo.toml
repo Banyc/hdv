@@ -1,5 +1,5 @@
 [package]
-name = "ov_derive"
+name = "hdv_derive"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-ov = { path = "../ov" }
+hdv = { path = "../hdv" }
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["extra-traits", "full"] }

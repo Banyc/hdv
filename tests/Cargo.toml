@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ov_derive = { path = "../derive" }
-ov = { path = "../ov" }
+hdv_derive = { path = "../derive" }
+hdv = { path = "../hdv" }

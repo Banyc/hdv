@@ -9,11 +9,11 @@ pub mod polars;
 pub mod text;
 
 #[derive(Debug)]
-struct OvShiftedHeader {
+struct HdvShiftedHeader {
     header: Vec<AtomScheme>,
     column_shifting: Vec<usize>,
 }
-impl OvShiftedHeader {
+impl HdvShiftedHeader {
     pub fn new(header: Vec<AtomScheme>, object_scheme: &ObjectScheme) -> Option<Self> {
         let required = object_scheme.atom_schemes();
         let mut column_shifting = vec![];

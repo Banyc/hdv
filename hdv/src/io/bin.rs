@@ -4,19 +4,19 @@ use integer_encoding::{VarIntReader, VarIntWriter};
 
 use crate::{
     format::{AtomScheme, AtomValue, ValueRow},
-    serde::{OvDeserialize, OvScheme, OvSerialize},
+    serde::{HdvDeserialize, HdvScheme, HdvSerialize},
 };
 
-use super::OvShiftedHeader;
+use super::HdvShiftedHeader;
 
 #[derive(Debug)]
-pub struct OvBinWriter<W, O> {
+pub struct HdvBinWriter<W, O> {
     has_written_header: bool,
     write: W,
     buf: Vec<u8>,
     _object: PhantomData<O>,
 }
-impl<W, V> OvBinWriter<W, V> {
+impl<W, V> HdvBinWriter<W, V> {
     pub fn new(write: W) -> Self {
         Self {
             has_written_header: false,
@@ -26,10 +26,10 @@ impl<W, V> OvBinWriter<W, V> {
         }
     }
 }
-impl<W, O> OvBinWriter<W, O>
+impl<W, O> HdvBinWriter<W, O>
 where
     W: std::io::Write,
-    O: OvSerialize + OvScheme,
+    O: HdvSerialize + HdvScheme,
 {
     pub fn write(&mut self, object: &O) -> std::io::Result<()> {
         if !self.has_written_header {
@@ -60,14 +60,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct OvBinReader<R, O> {
-    shift_header: Option<OvShiftedHeader>,
+pub struct HdvBinReader<R, O> {
+    shift_header: Option<HdvShiftedHeader>,
     read: R,
     buf: Vec<u8>,
     atom_value_buf: Vec<Option<AtomValue>>,
     _object: PhantomData<O>,
 }
-impl<R, V> OvBinReader<R, V> {
+impl<R, V> HdvBinReader<R, V> {
     pub fn new(read: R) -> Self {
         Self {
             shift_header: None,
@@ -78,15 +78,15 @@ impl<R, V> OvBinReader<R, V> {
         }
     }
 }
-impl<R, O> OvBinReader<R, O>
+impl<R, O> HdvBinReader<R, O>
 where
     R: std::io::Read,
-    O: OvDeserialize + OvScheme,
+    O: HdvDeserialize + HdvScheme,
 {
     pub fn read(&mut self) -> std::io::Result<O> {
         let Some(shift_header) = &self.shift_header else {
             let header = read_header(&mut self.read)?;
-            let shift_header = OvShiftedHeader::new(header, &O::object_scheme())
+            let shift_header = HdvShiftedHeader::new(header, &O::object_scheme())
                 .ok_or(std::io::ErrorKind::InvalidInput)?;
             self.shift_header = Some(shift_header);
 
@@ -103,12 +103,12 @@ where
 }
 
 #[derive(Debug)]
-pub struct OvBinRawReader<R> {
+pub struct HdvBinRawReader<R> {
     header: Option<Vec<AtomScheme>>,
     read: R,
     buf: Vec<u8>,
 }
-impl<R> OvBinRawReader<R> {
+impl<R> HdvBinRawReader<R> {
     pub fn new(read: R) -> Self {
         Self {
             header: None,
@@ -121,7 +121,7 @@ impl<R> OvBinRawReader<R> {
         self.header.as_ref()
     }
 }
-impl<R> OvBinRawReader<R>
+impl<R> HdvBinRawReader<R>
 where
     R: std::io::Read,
 {
@@ -182,7 +182,7 @@ mod tests {
             a: i64,
             b: f64,
         }
-        impl OvScheme for A {
+        impl HdvScheme for A {
             fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
@@ -198,7 +198,7 @@ mod tests {
                 }
             }
         }
-        impl OvSerialize for A {
+        impl HdvSerialize for A {
             fn serialize(&self, values: &mut Vec<Option<AtomValue>>) {
                 values.push(Some(AtomValue::I64(self.a)));
                 values.push(Some(AtomValue::F64(self.b)));
@@ -209,7 +209,7 @@ mod tests {
                 values.push(None);
             }
         }
-        impl OvDeserialize for A {
+        impl HdvDeserialize for A {
             fn deserialize(values: &mut &[Option<AtomValue>]) -> Option<Self> {
                 let a = {
                     let value = values.first()?.as_ref();
@@ -229,20 +229,20 @@ mod tests {
         }
 
         let mut buf = vec![];
-        let mut writer = OvBinWriter::new(&mut buf);
+        let mut writer = HdvBinWriter::new(&mut buf);
         let a = A { a: 1, b: 2. };
         let b = A { a: 3, b: 4. };
         writer.write(&a).unwrap();
         writer.write(&b).unwrap();
         writer.flush().unwrap();
 
-        let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
+        let mut reader = HdvBinReader::new(std::io::Cursor::new(&buf));
         let a_: A = reader.read().unwrap();
         let b_: A = reader.read().unwrap();
         assert_eq!(a, a_);
         assert_eq!(b, b_);
 
-        let mut reader = OvBinRawReader::new(std::io::Cursor::new(&buf));
+        let mut reader = HdvBinRawReader::new(std::io::Cursor::new(&buf));
         let a_ = reader.read().unwrap();
         let b_ = reader.read().unwrap();
         assert_eq!(

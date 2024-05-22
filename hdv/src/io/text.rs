@@ -2,24 +2,24 @@ use std::marker::PhantomData;
 
 use crate::{
     format::{AtomScheme, AtomType, AtomValue, ValueRow},
-    serde::{OvDeserialize, OvScheme, OvSerialize},
+    serde::{HdvDeserialize, HdvScheme, HdvSerialize},
 };
 
-use super::OvShiftedHeader;
+use super::HdvShiftedHeader;
 
 #[derive(Debug)]
-pub struct OvTextWriterOptions {
+pub struct HdvTextWriterOptions {
     pub is_csv_header: bool,
 }
 #[derive(Debug)]
-pub struct OvTextWriter<W, O> {
-    options: OvTextWriterOptions,
+pub struct HdvTextWriter<W, O> {
+    options: HdvTextWriterOptions,
     has_written_header: bool,
     write: W,
     _object: PhantomData<O>,
 }
-impl<W, V> OvTextWriter<W, V> {
-    pub fn new(write: W, options: OvTextWriterOptions) -> Self {
+impl<W, V> HdvTextWriter<W, V> {
+    pub fn new(write: W, options: HdvTextWriterOptions) -> Self {
         Self {
             options,
             has_written_header: false,
@@ -28,10 +28,10 @@ impl<W, V> OvTextWriter<W, V> {
         }
     }
 }
-impl<W, O> OvTextWriter<W, O>
+impl<W, O> HdvTextWriter<W, O>
 where
     W: std::io::Write,
-    O: OvSerialize + OvScheme,
+    O: HdvSerialize + HdvScheme,
 {
     pub fn write(&mut self, object: &O) -> std::io::Result<()> {
         if !self.has_written_header {
@@ -99,14 +99,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct OvTextReader<R, O> {
-    shift_header: Option<OvShiftedHeader>,
+pub struct HdvTextReader<R, O> {
+    shift_header: Option<HdvShiftedHeader>,
     read: R,
     buf: String,
     atom_value_buf: Vec<Option<AtomValue>>,
     _object: PhantomData<O>,
 }
-impl<R, V> OvTextReader<R, V> {
+impl<R, V> HdvTextReader<R, V> {
     pub fn new(read: R) -> Self {
         Self {
             shift_header: None,
@@ -117,15 +117,15 @@ impl<R, V> OvTextReader<R, V> {
         }
     }
 }
-impl<R, O> OvTextReader<R, O>
+impl<R, O> HdvTextReader<R, O>
 where
     R: std::io::BufRead,
-    O: OvDeserialize + OvScheme,
+    O: HdvDeserialize + HdvScheme,
 {
     pub fn read(&mut self) -> std::io::Result<O> {
         let Some(shift_header) = &self.shift_header else {
             let header = read_header(&mut self.read, &mut self.buf)?;
-            let shift_header = OvShiftedHeader::new(header, &O::object_scheme())
+            let shift_header = HdvShiftedHeader::new(header, &O::object_scheme())
                 .ok_or(std::io::ErrorKind::InvalidInput)?;
             self.shift_header = Some(shift_header);
 
@@ -142,12 +142,12 @@ where
 }
 
 #[derive(Debug)]
-pub struct OvTextRawReader<R> {
+pub struct HdvTextRawReader<R> {
     header: Option<Vec<AtomScheme>>,
     read: R,
     buf: String,
 }
-impl<R> OvTextRawReader<R> {
+impl<R> HdvTextRawReader<R> {
     pub fn new(read: R) -> Self {
         Self {
             header: None,
@@ -160,7 +160,7 @@ impl<R> OvTextRawReader<R> {
         self.header.as_ref()
     }
 }
-impl<R> OvTextRawReader<R>
+impl<R> HdvTextRawReader<R>
 where
     R: std::io::BufRead,
 {
@@ -250,7 +250,7 @@ mod tests {
             a: i64,
             b: f64,
         }
-        impl OvScheme for A {
+        impl HdvScheme for A {
             fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
@@ -266,7 +266,7 @@ mod tests {
                 }
             }
         }
-        impl OvSerialize for A {
+        impl HdvSerialize for A {
             fn serialize(&self, values: &mut Vec<Option<AtomValue>>) {
                 values.push(Some(AtomValue::I64(self.a)));
                 values.push(Some(AtomValue::F64(self.b)));
@@ -277,7 +277,7 @@ mod tests {
                 values.push(None);
             }
         }
-        impl OvDeserialize for A {
+        impl HdvDeserialize for A {
             fn deserialize(values: &mut &[Option<AtomValue>]) -> Option<Self> {
                 let a = {
                     let value = values.first()?.as_ref();
@@ -297,10 +297,10 @@ mod tests {
         }
 
         let mut buf = vec![];
-        let options = OvTextWriterOptions {
+        let options = HdvTextWriterOptions {
             is_csv_header: false,
         };
-        let mut writer = OvTextWriter::new(&mut buf, options);
+        let mut writer = HdvTextWriter::new(&mut buf, options);
         let a = A { a: 1, b: 2. };
         let b = A { a: 3, b: 4. };
         writer.write(&a).unwrap();
@@ -308,13 +308,13 @@ mod tests {
         writer.flush().unwrap();
         println!("{}", String::from_utf8(buf.clone()).unwrap());
 
-        let mut reader = OvTextReader::new(std::io::Cursor::new(&buf));
+        let mut reader = HdvTextReader::new(std::io::Cursor::new(&buf));
         let a_: A = reader.read().unwrap();
         let b_: A = reader.read().unwrap();
         assert_eq!(a, a_);
         assert_eq!(b, b_);
 
-        let mut reader = OvTextRawReader::new(std::io::Cursor::new(&buf));
+        let mut reader = HdvTextRawReader::new(std::io::Cursor::new(&buf));
         let a_ = reader.read().unwrap();
         let b_ = reader.read().unwrap();
         assert_eq!(
@@ -327,10 +327,10 @@ mod tests {
         );
 
         let mut buf = vec![];
-        let options = OvTextWriterOptions {
+        let options = HdvTextWriterOptions {
             is_csv_header: true,
         };
-        let mut writer = OvTextWriter::new(&mut buf, options);
+        let mut writer = HdvTextWriter::new(&mut buf, options);
         let a = A { a: 1, b: 2. };
         let b = A { a: 3, b: 4. };
         writer.write(&a).unwrap();

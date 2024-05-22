@@ -1,15 +1,15 @@
 use crate::format::{AtomScheme, AtomType, AtomValue};
 
-pub trait OvScheme {
+pub trait HdvScheme {
     fn object_scheme() -> ObjectScheme;
 }
 
-pub trait OvSerialize {
+pub trait HdvSerialize {
     fn serialize(&self, values: &mut Vec<Option<AtomValue>>);
     fn fill_nulls(values: &mut Vec<Option<AtomValue>>);
 }
 
-pub trait OvDeserialize: Sized {
+pub trait HdvDeserialize: Sized {
     fn deserialize(values: &mut &[Option<AtomValue>]) -> Option<Self>;
 }
 
@@ -89,7 +89,7 @@ mod tests {
             c: Option<f64>,
             d: B,
         }
-        impl OvScheme for A {
+        impl HdvScheme for A {
             fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
@@ -99,7 +99,7 @@ mod tests {
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Object(<B as OvScheme>::object_scheme()),
+                            value: ValueType::Object(<B as HdvScheme>::object_scheme()),
                         },
                         FieldScheme {
                             name: "c".to_string(),
@@ -107,33 +107,33 @@ mod tests {
                         },
                         FieldScheme {
                             name: "d".to_string(),
-                            value: ValueType::Object(<B as OvScheme>::object_scheme()),
+                            value: ValueType::Object(<B as HdvScheme>::object_scheme()),
                         },
                     ],
                 }
             }
         }
-        impl OvSerialize for A {
+        impl HdvSerialize for A {
             #[allow(clippy::redundant_closure)]
             fn serialize(&self, values: &mut Vec<Option<AtomValue>>) {
                 values.push(Some(AtomValue::U64(self.a as _)));
                 if let Some(x) = self.b.as_ref() {
-                    OvSerialize::serialize(x, values);
+                    HdvSerialize::serialize(x, values);
                 } else {
-                    <B as OvSerialize>::fill_nulls(values);
+                    <B as HdvSerialize>::fill_nulls(values);
                 }
                 values.push(self.c.map(|x| AtomValue::F64(x as _)));
-                OvSerialize::serialize(&self.d, values);
+                HdvSerialize::serialize(&self.d, values);
             }
 
             fn fill_nulls(values: &mut Vec<Option<AtomValue>>) {
                 values.push(None);
-                <B as OvSerialize>::fill_nulls(values);
+                <B as HdvSerialize>::fill_nulls(values);
                 values.push(None);
-                <B as OvSerialize>::fill_nulls(values);
+                <B as HdvSerialize>::fill_nulls(values);
             }
         }
-        impl OvDeserialize for A {
+        impl HdvDeserialize for A {
             #[allow(clippy::redundant_field_names)]
             fn deserialize(__values: &mut &[Option<AtomValue>]) -> Option<Self> {
                 let a = {
@@ -141,13 +141,13 @@ mod tests {
                     *__values = &__values[1..];
                     value
                 };
-                let b = <B as OvDeserialize>::deserialize(__values);
+                let b = <B as HdvDeserialize>::deserialize(__values);
                 let c = {
                     let value = __values.first()?.as_ref();
                     *__values = &__values[1..];
                     value
                 };
-                let d = <B as OvDeserialize>::deserialize(__values);
+                let d = <B as HdvDeserialize>::deserialize(__values);
                 Some(Self {
                     a: a?.u64().unwrap() as _,
                     b: b,
@@ -164,7 +164,7 @@ mod tests {
             c: String,
             d: Option<Vec<u8>>,
         }
-        impl OvScheme for B {
+        impl HdvScheme for B {
             fn object_scheme() -> ObjectScheme {
                 ObjectScheme {
                     fields: vec![
@@ -188,7 +188,7 @@ mod tests {
                 }
             }
         }
-        impl OvSerialize for B {
+        impl HdvSerialize for B {
             fn serialize(&self, values: &mut Vec<Option<AtomValue>>) {
                 values.push(Some(AtomValue::Bytes(self.a.clone())));
                 values.push(Some(AtomValue::I64(self.b)));
@@ -203,7 +203,7 @@ mod tests {
                 values.push(None);
             }
         }
-        impl OvDeserialize for B {
+        impl HdvDeserialize for B {
             fn deserialize(values: &mut &[Option<AtomValue>]) -> Option<Self> {
                 let a = {
                     let value = values.first()?.as_ref();

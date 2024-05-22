@@ -1,9 +1,9 @@
+use hdv::format::AtomType;
 use option::extract_type_from_option;
-use ov::format::AtomType;
 
 mod option;
 
-#[proc_macro_derive(OvSerde)]
+#[proc_macro_derive(HdvSerde)]
 pub fn serde(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let serde = syn::parse_macro_input!(input as Serde);
 
@@ -20,7 +20,7 @@ pub fn serde(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 #[allow(non_snake_case)]
 fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
-    let OvScheme = ov_scheme_type();
+    let HdvScheme = hdv_scheme_type();
     let mut field_schemes = vec![];
     for field in &serde.fields {
         let double_quoted_field_name = field.ident.to_string();
@@ -29,7 +29,7 @@ fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
         let value = match &field.ty {
             FieldType::Object(x) => {
                 quote::quote! {
-                    #ValueType::Object(<#x as #OvScheme>::object_scheme())
+                    #ValueType::Object(<#x as #HdvScheme>::object_scheme())
                 }
             }
             FieldType::Atom(x) => {
@@ -50,7 +50,7 @@ fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
     let Name = &serde.name;
     let ObjectScheme = object_scheme_type();
     quote::quote! {
-        impl #OvScheme for #Name {
+        impl #HdvScheme for #Name {
             fn object_scheme() -> #ObjectScheme {
                 #ObjectScheme {
                     fields: vec![
@@ -63,7 +63,7 @@ fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
 }
 #[allow(non_snake_case)]
 fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
-    let OvSerialize = ov_serialize_type();
+    let HdvSerialize = hdv_serialize_type();
     let mut write_values = vec![];
     let AtomValue = atom_value_type();
     for field in &serde.fields {
@@ -73,13 +73,13 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
                 if field.nullable {
                     quote::quote! {
                         if let Some(x) = self.#field_name.as_ref() {
-                            #OvSerialize::serialize(x, values);
+                            #HdvSerialize::serialize(x, values);
                         } else {
-                            <#Name as OvSerialize>::fill_nulls(values);
+                            <#Name as HdvSerialize>::fill_nulls(values);
                         }
                     }
                 } else {
-                    quote::quote! { #OvSerialize::serialize(&self.#field_name, values); }
+                    quote::quote! { #HdvSerialize::serialize(&self.#field_name, values); }
                 }
             }
             FieldType::Atom(atom_type) => {
@@ -116,7 +116,7 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
     for field in &serde.fields {
         let fill_null = match &field.ty {
             FieldType::Object(Name) => {
-                quote::quote! { <#Name as OvSerialize>::fill_nulls(values); }
+                quote::quote! { <#Name as HdvSerialize>::fill_nulls(values); }
             }
             FieldType::Atom(_) => {
                 quote::quote! { values.push(None); }
@@ -127,7 +127,7 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
 
     let Name = &serde.name;
     quote::quote! {
-        impl #OvSerialize for #Name {
+        impl #HdvSerialize for #Name {
             fn serialize(&self, values: &mut Vec<Option<#AtomValue>>) {
                 #( #write_values )*
             }
@@ -140,13 +140,13 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
 }
 #[allow(non_snake_case)]
 fn impl_deserialize(serde: &Serde) -> proc_macro2::TokenStream {
-    let OvDeserialize = ov_deserialize_type();
+    let HdvDeserialize = hdv_deserialize_type();
     let mut fetch_values = vec![];
     for field in &serde.fields {
         let field_name = &field.ident;
         let fetch_value = match &field.ty {
             FieldType::Object(Name) => {
-                quote::quote! { let #field_name = <#Name as #OvDeserialize>::deserialize(__values); }
+                quote::quote! { let #field_name = <#Name as #HdvDeserialize>::deserialize(__values); }
             }
             FieldType::Atom(_) => {
                 quote::quote! {
@@ -198,7 +198,7 @@ fn impl_deserialize(serde: &Serde) -> proc_macro2::TokenStream {
     let Name = &serde.name;
     let AtomValue = atom_value_type();
     quote::quote! {
-        impl #OvDeserialize for #Name {
+        impl #HdvDeserialize for #Name {
             fn deserialize(__values: &mut &[Option<#AtomValue>]) -> Option<Self> {
                 #( #fetch_values )*
                 Some(Self {
@@ -209,44 +209,44 @@ fn impl_deserialize(serde: &Serde) -> proc_macro2::TokenStream {
     }
 }
 
-fn ov_scheme_type() -> proc_macro2::TokenStream {
+fn hdv_scheme_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::serde::OvScheme
+        hdv::serde::HdvScheme
     }
 }
-fn ov_serialize_type() -> proc_macro2::TokenStream {
+fn hdv_serialize_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::serde::OvSerialize
+        hdv::serde::HdvSerialize
     }
 }
-fn ov_deserialize_type() -> proc_macro2::TokenStream {
+fn hdv_deserialize_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::serde::OvDeserialize
+        hdv::serde::HdvDeserialize
     }
 }
 fn object_scheme_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::serde::ObjectScheme
+        hdv::serde::ObjectScheme
     }
 }
 fn field_scheme_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::serde::FieldScheme
+        hdv::serde::FieldScheme
     }
 }
 fn value_type_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::serde::ValueType
+        hdv::serde::ValueType
     }
 }
 fn atom_type_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::format::AtomType
+        hdv::format::AtomType
     }
 }
 fn atom_value_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        ov::format::AtomValue
+        hdv::format::AtomValue
     }
 }
 

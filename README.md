@@ -1,6 +1,6 @@
-# `ov`
+# `hdv`
 
-Object values.
+Header determined values.
 
 CSV but can be parsed in a multi-layer `struct`.
 
@@ -9,28 +9,28 @@ CSV but can be parsed in a multi-layer `struct`.
 ### Import dependencies
 
 ```rust
-use ov::{
+use hdv::{
     format::AtomValue,
     io::{
-        bin::{OvBinReader, OvBinWriter},
-        text::{OvTextReader, OvTextWriter, OvTextWriterOptions},
+        bin::{HdvBinReader, HdvBinWriter},
+        text::{HdvTextReader, HdvTextWriter, HdvTextWriterOptions},
     },
-    serde::{OvDeserialize, OvSerialize},
+    serde::{HdvDeserialize, HdvSerialize},
 };
-use ov_derive::OvSerde;
+use hdv_derive::HdvSerde;
 ```
 
 ### Write and read data in binary format
 
 ```rust
-#[derive(Debug, OvSerde, PartialEq)]
+#[derive(Debug, HdvSerde, PartialEq)]
 pub struct A {
     a: u16,
     b: Option<B>,
     c: Option<f64>,
     d: B,
 }
-#[derive(Debug, OvSerde, PartialEq)]
+#[derive(Debug, HdvSerde, PartialEq)]
 struct B {
     a: Vec<u8>,
     b: i64,
@@ -51,21 +51,21 @@ let a = A {
 };
 
 let mut buf = vec![];
-let mut writer = OvBinWriter::new(&mut buf);
+let mut writer = HdvBinWriter::new(&mut buf);
 writer.write(&a).unwrap();
 writer.flush().unwrap();
 
-let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
+let mut reader = HdvBinReader::new(std::io::Cursor::new(&buf));
 let a_: A = reader.read().unwrap();
 assert_eq!(a, a_);
 
-#[derive(Debug, OvSerde, PartialEq)]
+#[derive(Debug, HdvSerde, PartialEq)]
 pub struct PartialA {
     c: Option<f64>,
     a: u16,
 }
 
-let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
+let mut reader = HdvBinReader::new(std::io::Cursor::new(&buf));
 let partial_a: PartialA = reader.read().unwrap();
 assert_eq!(a.a, partial_a.a);
 assert_eq!(a.c, partial_a.c);
@@ -79,14 +79,14 @@ Currently the text format does not accept:
 - strings containing any of the chars `,`, `"`, and `\n` or starting with whitespace characters.
 
 ```rust
-#[derive(Debug, OvSerde, PartialEq)]
+#[derive(Debug, HdvSerde, PartialEq)]
 pub struct A {
     a: u16,
     b: Option<B>,
     c: Option<f64>,
     d: B,
 }
-#[derive(Debug, OvSerde, PartialEq)]
+#[derive(Debug, HdvSerde, PartialEq)]
 struct B {
     b: i64,
     c: String,
@@ -103,24 +103,24 @@ let a = A {
 };
 
 let mut buf = vec![];
-let options = OvTextWriterOptions {
+let options = HdvTextWriterOptions {
     is_csv_header: false,
 };
-let mut writer = OvTextWriter::new(&mut buf, options);
+let mut writer = HdvTextWriter::new(&mut buf, options);
 writer.write(&a).unwrap();
 writer.flush().unwrap();
 
-let mut reader = OvTextReader::new(std::io::Cursor::new(&buf));
+let mut reader = HdvTextReader::new(std::io::Cursor::new(&buf));
 let a_: A = reader.read().unwrap();
 assert_eq!(a, a_);
 
-#[derive(Debug, OvSerde, PartialEq)]
+#[derive(Debug, HdvSerde, PartialEq)]
 pub struct PartialA {
     c: Option<f64>,
     a: u16,
 }
 
-let mut reader = OvTextReader::new(std::io::Cursor::new(&buf));
+let mut reader = HdvTextReader::new(std::io::Cursor::new(&buf));
 let partial_a: PartialA = reader.read().unwrap();
 assert_eq!(a.a, partial_a.a);
 assert_eq!(a.c, partial_a.c);

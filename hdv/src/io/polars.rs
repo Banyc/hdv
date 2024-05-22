@@ -2,13 +2,13 @@ use polars::prelude::NamedFrom;
 
 use crate::format::{AtomScheme, AtomType, AtomValue};
 
-use super::{bin::OvBinRawReader, text::OvTextRawReader};
+use super::{bin::HdvBinRawReader, text::HdvTextRawReader};
 
-pub fn ov_bin_polars_read<R>(read: R) -> std::io::Result<polars::frame::DataFrame>
+pub fn hdv_bin_polars_read<R>(read: R) -> std::io::Result<polars::frame::DataFrame>
 where
     R: std::io::Read,
 {
-    let mut reader = OvBinRawReader::new(read);
+    let mut reader = HdvBinRawReader::new(read);
     let mut rows = vec![];
     loop {
         let res = reader.read();
@@ -28,13 +28,13 @@ where
         None => return Ok(polars::frame::DataFrame::empty()),
     };
 
-    Ok(ov_polars_read(rows, header))
+    Ok(hdv_polars_read(rows, header))
 }
-pub fn ov_text_polars_read<R>(read: R) -> std::io::Result<polars::frame::DataFrame>
+pub fn hdv_text_polars_read<R>(read: R) -> std::io::Result<polars::frame::DataFrame>
 where
     R: std::io::BufRead,
 {
-    let mut reader = OvTextRawReader::new(read);
+    let mut reader = HdvTextRawReader::new(read);
     let mut rows = vec![];
     loop {
         let res = reader.read();
@@ -54,10 +54,10 @@ where
         None => return Ok(polars::frame::DataFrame::empty()),
     };
 
-    Ok(ov_polars_read(rows, header))
+    Ok(hdv_polars_read(rows, header))
 }
 
-fn ov_polars_read(
+fn hdv_polars_read(
     rows: Vec<Vec<Option<AtomValue>>>,
     header: &[AtomScheme],
 ) -> polars::frame::DataFrame {

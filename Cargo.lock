@@ -363,6 +363,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "hdv"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "integer-encoding",
+ "polars",
+ "ron",
+ "serde",
+ "strum",
+]
+
+[[package]]
+name = "hdv_derive"
+version = "0.1.0"
+dependencies = [
+ "hdv",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.65",
+]
+
+[[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -570,28 +592,6 @@ name = "once_cell"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
-
-[[package]]
-name = "ov"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "integer-encoding",
- "polars",
- "ron",
- "serde",
- "strum",
-]
-
-[[package]]
-name = "ov_derive"
-version = "0.1.0"
-dependencies = [
- "ov",
- "proc-macro2",
- "quote",
- "syn 2.0.65",
-]
 
 [[package]]
 name = "parking_lot"
@@ -1437,8 +1437,8 @@ checksum = "c1bbb9f3c5c463a01705937a24fdabc5047929ac764b2d5b9cf681c1f5041ed5"
 name = "tests"
 version = "0.1.0"
 dependencies = [
- "ov",
- "ov_derive",
+ "hdv",
+ "hdv_derive",
 ]
 
 [[package]]
