@@ -1,5 +1,5 @@
 use crate::{
-    format::{AtomScheme, AtomValue},
+    format::{AtomScheme, AtomValue, ValueRow},
     serde::ObjectScheme,
 };
 
@@ -36,5 +36,15 @@ impl HdvShiftedHeader {
             let value = source[i].clone();
             values.push(value);
         }
+    }
+}
+
+fn assert_atom_types(header: &[AtomScheme], row: &ValueRow) {
+    assert_eq!(header.len(), row.atoms().len());
+    for (a, b) in header.iter().zip(row.atoms().iter()) {
+        let Some(b) = b else {
+            continue;
+        };
+        assert_eq!(a.value, b.into());
     }
 }

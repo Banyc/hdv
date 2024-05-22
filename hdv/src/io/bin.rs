@@ -7,7 +7,7 @@ use crate::{
     serde::{HdvDeserialize, HdvScheme, HdvSerialize},
 };
 
-use super::HdvShiftedHeader;
+use super::{assert_atom_types, HdvShiftedHeader};
 
 #[derive(Debug)]
 pub struct HdvBinWriter<W, O> {
@@ -16,7 +16,7 @@ pub struct HdvBinWriter<W, O> {
     buf: Vec<u8>,
     _object: PhantomData<O>,
 }
-impl<W, V> HdvBinWriter<W, V> {
+impl<W, O> HdvBinWriter<W, O> {
     pub fn new(write: W) -> Self {
         Self {
             has_written_header: false,
@@ -37,20 +37,53 @@ where
 
             let header = O::object_scheme();
             let header = header.atom_schemes();
-            let header = bincode::serialize(&header).unwrap();
-            self.write.write_varint(header.len())?;
-            self.write.write_all(&header)?;
+            write_header(&mut self.write, &header)?;
         }
 
         let mut atoms = vec![];
         object.serialize(&mut atoms);
 
         let row = ValueRow::new(atoms);
-        self.buf.clear();
-        row.encode(&mut self.buf);
+        write_row(&mut self.write, row, &mut self.buf)?;
+        Ok(())
+    }
 
-        self.write.write_varint(self.buf.len())?;
-        self.write.write_all(&self.buf)?;
+    pub fn flush(&mut self) -> std::io::Result<()> {
+        self.write.flush()
+    }
+}
+
+#[derive(Debug)]
+pub struct HdvBinRawWriter<W> {
+    header: Vec<AtomScheme>,
+    has_written_header: bool,
+    write: W,
+    buf: Vec<u8>,
+}
+impl<W> HdvBinRawWriter<W> {
+    pub fn new(write: W, header: Vec<AtomScheme>) -> Self {
+        Self {
+            header,
+            has_written_header: false,
+            write,
+            buf: vec![],
+        }
+    }
+}
+impl<W> HdvBinRawWriter<W>
+where
+    W: std::io::Write,
+{
+    pub fn write(&mut self, row: ValueRow) -> std::io::Result<()> {
+        if !self.has_written_header {
+            self.has_written_header = true;
+
+            write_header(&mut self.write, &self.header)?;
+        }
+
+        assert_atom_types(&self.header, &row);
+
+        write_row(&mut self.write, row, &mut self.buf)?;
         Ok(())
     }
 
@@ -137,6 +170,15 @@ where
     }
 }
 
+fn write_header<W>(write: &mut W, header: &[AtomScheme]) -> std::io::Result<()>
+where
+    W: std::io::Write,
+{
+    let header = bincode::serialize(header).unwrap();
+    write.write_varint(header.len())?;
+    write.write_all(&header)?;
+    Ok(())
+}
 fn read_header<R>(read: &mut R) -> std::io::Result<Vec<AtomScheme>>
 where
     R: std::io::Read,
@@ -147,6 +189,18 @@ where
     let header: Vec<AtomScheme> =
         bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
     Ok(header)
+}
+
+fn write_row<W>(write: &mut W, row: ValueRow, buf: &mut Vec<u8>) -> std::io::Result<()>
+where
+    W: std::io::Write,
+{
+    buf.clear();
+    row.encode(buf);
+
+    write.write_varint(buf.len())?;
+    write.write_all(buf)?;
+    Ok(())
 }
 fn read_row<R>(
     read: &mut R,
@@ -253,5 +307,23 @@ mod tests {
             b_.atoms().as_slice(),
             [Some(AtomValue::I64(3)), Some(AtomValue::F64(4.0))]
         );
+
+        let mut buf_ = vec![];
+        let header = A::object_scheme().atom_schemes().clone();
+        let mut writer = HdvBinRawWriter::new(&mut buf_, header);
+        writer
+            .write(ValueRow::new(vec![
+                Some(AtomValue::I64(1)),
+                Some(AtomValue::F64(2.0)),
+            ]))
+            .unwrap();
+        writer
+            .write(ValueRow::new(vec![
+                Some(AtomValue::I64(3)),
+                Some(AtomValue::F64(4.0)),
+            ]))
+            .unwrap();
+        writer.flush().unwrap();
+        assert_eq!(buf, buf_);
     }
 }

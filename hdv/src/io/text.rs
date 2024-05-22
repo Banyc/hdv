@@ -5,9 +5,9 @@ use crate::{
     serde::{HdvDeserialize, HdvScheme, HdvSerialize},
 };
 
-use super::HdvShiftedHeader;
+use super::{assert_atom_types, HdvShiftedHeader};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HdvTextWriterOptions {
     pub is_csv_header: bool,
 }
@@ -39,57 +39,53 @@ where
 
             let header = O::object_scheme();
             let header = header.atom_schemes();
-            if self.options.is_csv_header {
-                for item in &header {
-                    self.write.write_all(item.name.as_bytes())?;
-                    self.write.write_all(b",")?;
-                }
-            } else {
-                let header = ron::to_string(&header).unwrap();
-                self.write.write_all(header.as_bytes())?;
-            }
-            self.write.write_all(b"\n").unwrap();
+            write_header(&mut self.write, &header, &self.options)?;
         }
 
         let mut atoms = vec![];
         object.serialize(&mut atoms);
 
         let row = ValueRow::new(atoms);
-        for item in row.atoms() {
-            let Some(value) = item else {
-                self.write.write_all(b",")?;
-                continue;
-            };
-            match value {
-                AtomValue::String(x) => {
-                    if x.contains(",")
-                        || x.contains("\"")
-                        || x.contains("\n")
-                        || x.trim_ascii_start() != x
-                    {
-                        return Err(std::io::ErrorKind::InvalidInput)?;
-                    }
-                    self.write.write_all(x.as_bytes())?;
-                    self.write.write_all(b",")?;
-                }
-                AtomValue::Bytes(_) => {
-                    return Err(std::io::ErrorKind::InvalidInput)?;
-                }
-                AtomValue::U64(x) => {
-                    self.write.write_all(format!("{x},").as_bytes())?;
-                }
-                AtomValue::I64(x) => {
-                    self.write.write_all(format!("{x},").as_bytes())?;
-                }
-                AtomValue::F32(x) => {
-                    self.write.write_all(format!("{x},").as_bytes())?;
-                }
-                AtomValue::F64(x) => {
-                    self.write.write_all(format!("{x},").as_bytes())?;
-                }
-            }
+        write_row(&mut self.write, row)?;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> std::io::Result<()> {
+        self.write.flush()
+    }
+}
+
+#[derive(Debug)]
+pub struct HdvTextRawWriter<W> {
+    options: HdvTextWriterOptions,
+    header: Vec<AtomScheme>,
+    has_written_header: bool,
+    write: W,
+}
+impl<W> HdvTextRawWriter<W> {
+    pub fn new(write: W, header: Vec<AtomScheme>, options: HdvTextWriterOptions) -> Self {
+        Self {
+            options,
+            header,
+            has_written_header: false,
+            write,
         }
-        self.write.write_all(b"\n")?;
+    }
+}
+impl<W> HdvTextRawWriter<W>
+where
+    W: std::io::Write,
+{
+    pub fn write(&mut self, row: ValueRow) -> std::io::Result<()> {
+        if !self.has_written_header {
+            self.has_written_header = true;
+
+            write_header(&mut self.write, &self.header, &self.options)?;
+        }
+
+        assert_atom_types(&self.header, &row);
+
+        write_row(&mut self.write, row)?;
         Ok(())
     }
 
@@ -106,7 +102,7 @@ pub struct HdvTextReader<R, O> {
     atom_value_buf: Vec<Option<AtomValue>>,
     _object: PhantomData<O>,
 }
-impl<R, V> HdvTextReader<R, V> {
+impl<R, O> HdvTextReader<R, O> {
     pub fn new(read: R) -> Self {
         Self {
             shift_header: None,
@@ -132,9 +128,9 @@ where
             return self.read();
         };
 
-        let atoms = read_row(&mut self.read, shift_header.header(), &mut self.buf)?;
+        let row = read_row(&mut self.read, shift_header.header(), &mut self.buf)?;
         self.atom_value_buf.clear();
-        shift_header.shift(&atoms, &mut self.atom_value_buf);
+        shift_header.shift(row.atoms(), &mut self.atom_value_buf);
 
         let object = O::deserialize(&mut self.atom_value_buf.as_slice()).unwrap();
         Ok(object)
@@ -172,11 +168,31 @@ where
             return self.read();
         };
 
-        let atoms = read_row(&mut self.read, header, &mut self.buf)?;
-        Ok(atoms)
+        let row = read_row(&mut self.read, header, &mut self.buf)?;
+        Ok(row.into_atoms())
     }
 }
 
+fn write_header<W>(
+    write: &mut W,
+    header: &[AtomScheme],
+    options: &HdvTextWriterOptions,
+) -> std::io::Result<()>
+where
+    W: std::io::Write,
+{
+    if options.is_csv_header {
+        for item in header {
+            write.write_all(item.name.as_bytes())?;
+            write.write_all(b",")?;
+        }
+    } else {
+        let header = ron::to_string(&header).unwrap();
+        write.write_all(header.as_bytes())?;
+    }
+    write.write_all(b"\n").unwrap();
+    Ok(())
+}
 fn read_header<R>(read: &mut R, buf: &mut String) -> std::io::Result<Vec<AtomScheme>>
 where
     R: std::io::BufRead,
@@ -187,11 +203,53 @@ where
         ron::from_str(buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
     Ok(header)
 }
+
+fn write_row<W>(write: &mut W, row: ValueRow) -> std::io::Result<()>
+where
+    W: std::io::Write,
+{
+    for item in row.atoms() {
+        let Some(value) = item else {
+            write.write_all(b",")?;
+            continue;
+        };
+        match value {
+            AtomValue::String(x) => {
+                if x.contains(",")
+                    || x.contains("\"")
+                    || x.contains("\n")
+                    || x.trim_ascii_start() != x
+                {
+                    Err(std::io::ErrorKind::InvalidInput)?;
+                }
+                write.write_all(x.as_bytes())?;
+                write.write_all(b",")?;
+            }
+            AtomValue::Bytes(_) => {
+                Err(std::io::ErrorKind::InvalidInput)?;
+            }
+            AtomValue::U64(x) => {
+                write.write_all(format!("{x},").as_bytes())?;
+            }
+            AtomValue::I64(x) => {
+                write.write_all(format!("{x},").as_bytes())?;
+            }
+            AtomValue::F32(x) => {
+                write.write_all(format!("{x},").as_bytes())?;
+            }
+            AtomValue::F64(x) => {
+                write.write_all(format!("{x},").as_bytes())?;
+            }
+        }
+    }
+    write.write_all(b"\n")?;
+    Ok(())
+}
 fn read_row<R>(
     read: &mut R,
     atom_schemes: &[AtomScheme],
     buf: &mut String,
-) -> std::io::Result<Vec<Option<AtomValue>>>
+) -> std::io::Result<ValueRow>
 where
     R: std::io::BufRead,
 {
@@ -231,7 +289,7 @@ where
         };
         atoms.push(Some(atom));
     }
-    Ok(atoms)
+    Ok(ValueRow::new(atoms))
 }
 
 #[cfg(test)]
@@ -330,12 +388,30 @@ mod tests {
         let options = HdvTextWriterOptions {
             is_csv_header: true,
         };
-        let mut writer = HdvTextWriter::new(&mut buf, options);
+        let mut writer = HdvTextWriter::new(&mut buf, options.clone());
         let a = A { a: 1, b: 2. };
         let b = A { a: 3, b: 4. };
         writer.write(&a).unwrap();
         writer.write(&b).unwrap();
         writer.flush().unwrap();
         println!("{}", String::from_utf8(buf.clone()).unwrap());
+
+        let mut buf_ = vec![];
+        let header = A::object_scheme().atom_schemes().clone();
+        let mut writer = HdvTextRawWriter::new(&mut buf_, header, options);
+        writer
+            .write(ValueRow::new(vec![
+                Some(AtomValue::I64(1)),
+                Some(AtomValue::F64(2.0)),
+            ]))
+            .unwrap();
+        writer
+            .write(ValueRow::new(vec![
+                Some(AtomValue::I64(3)),
+                Some(AtomValue::F64(4.0)),
+            ]))
+            .unwrap();
+        writer.flush().unwrap();
+        assert_eq!(buf, buf_);
     }
 }
