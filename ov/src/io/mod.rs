@@ -4,6 +4,8 @@ use crate::{
 };
 
 pub mod bin;
+#[cfg(feature = "polars")]
+pub mod polars;
 pub mod text;
 
 #[derive(Debug)]

@@ -2,19 +2,16 @@
 mod tests {
     use ov::{
         format::AtomValue,
-        io::bin::{OvBinReader, OvBinWriter},
+        io::{
+            bin::{OvBinReader, OvBinWriter},
+            text::{OvTextReader, OvTextWriter, OvTextWriterOptions},
+        },
         serde::{OvDeserialize, OvSerialize},
     };
     use ov_derive::OvSerde;
 
     #[test]
-    fn test_derive() {
-        #[derive(Debug, OvSerde, PartialEq)]
-        pub struct PartialA {
-            c: Option<f64>,
-            a: u16,
-        }
-
+    fn test_derive_bin() {
         #[derive(Debug, OvSerde, PartialEq)]
         pub struct A {
             a: u16,
@@ -72,7 +69,79 @@ mod tests {
         let a_: A = reader.read().unwrap();
         assert_eq!(a, a_);
 
+        #[derive(Debug, OvSerde, PartialEq)]
+        pub struct PartialA {
+            c: Option<f64>,
+            a: u16,
+        }
+
         let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
+        let partial_a: PartialA = reader.read().unwrap();
+        assert_eq!(a.a, partial_a.a);
+        assert_eq!(a.c, partial_a.c);
+    }
+
+    #[test]
+    fn test_derive_text() {
+        #[derive(Debug, OvSerde, PartialEq)]
+        pub struct A {
+            a: u16,
+            b: Option<B>,
+            c: Option<f64>,
+            d: B,
+        }
+        #[derive(Debug, OvSerde, PartialEq)]
+        struct B {
+            b: i64,
+            c: String,
+        }
+
+        let a = A {
+            a: 1,
+            b: None,
+            c: Some(3.),
+            d: B {
+                b: 2,
+                c: "world".to_owned(),
+            },
+        };
+
+        let mut values = vec![];
+        a.serialize(&mut values);
+        assert_eq!(
+            values,
+            [
+                Some(AtomValue::U64(1)),
+                None,
+                None,
+                Some(AtomValue::F64(3.0)),
+                Some(AtomValue::I64(2)),
+                Some(AtomValue::String("world".to_owned())),
+            ]
+        );
+
+        let b = A::deserialize(&mut &*values).unwrap();
+        assert_eq!(a, b);
+
+        let mut buf = vec![];
+        let options = OvTextWriterOptions {
+            is_csv_header: false,
+        };
+        let mut writer = OvTextWriter::new(&mut buf, options);
+        writer.write(&a).unwrap();
+        writer.flush().unwrap();
+
+        let mut reader = OvTextReader::new(std::io::Cursor::new(&buf));
+        let a_: A = reader.read().unwrap();
+        assert_eq!(a, a_);
+
+        #[derive(Debug, OvSerde, PartialEq)]
+        pub struct PartialA {
+            c: Option<f64>,
+            a: u16,
+        }
+
+        let mut reader = OvTextReader::new(std::io::Cursor::new(&buf));
         let partial_a: PartialA = reader.read().unwrap();
         assert_eq!(a.a, partial_a.a);
         assert_eq!(a.c, partial_a.c);

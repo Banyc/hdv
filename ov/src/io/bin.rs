@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use integer_encoding::{VarIntReader, VarIntWriter};
 
 use crate::{
-    format::{AtomValue, ValueRow},
+    format::{AtomScheme, AtomValue, ValueRow},
     serde::{OvDeserialize, OvScheme, OvSerialize},
 };
 
@@ -85,11 +85,7 @@ where
 {
     pub fn read(&mut self) -> std::io::Result<O> {
         let Some(shift_header) = &self.shift_header else {
-            let len = self.read.read_varint()?;
-            let mut buf = vec![0; len];
-            self.read.read_exact(&mut buf)?;
-            let header =
-                bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
+            let header = read_header(&mut self.read)?;
             let shift_header = OvShiftedHeader::new(header, &O::object_scheme())
                 .ok_or(std::io::ErrorKind::InvalidInput)?;
             self.shift_header = Some(shift_header);
@@ -97,19 +93,77 @@ where
             return self.read();
         };
 
-        let len = self.read.read_varint()?;
-
-        self.buf.clear();
-        self.buf.extend(std::iter::repeat(0).take(len));
-        self.read.read_exact(&mut self.buf)?;
-        let row = ValueRow::decode(shift_header.header(), &mut std::io::Cursor::new(&self.buf))
-            .ok_or(std::io::ErrorKind::InvalidInput)?;
+        let row = read_row(&mut self.read, shift_header.header(), &mut self.buf)?;
         self.atom_value_buf.clear();
         shift_header.shift(row.atoms(), &mut self.atom_value_buf);
 
         let object = O::deserialize(&mut self.atom_value_buf.as_slice()).unwrap();
         Ok(object)
     }
+}
+
+#[derive(Debug)]
+pub struct OvBinRawReader<R> {
+    header: Option<Vec<AtomScheme>>,
+    read: R,
+    buf: Vec<u8>,
+}
+impl<R> OvBinRawReader<R> {
+    pub fn new(read: R) -> Self {
+        Self {
+            header: None,
+            read,
+            buf: vec![],
+        }
+    }
+
+    pub fn header(&self) -> Option<&Vec<AtomScheme>> {
+        self.header.as_ref()
+    }
+}
+impl<R> OvBinRawReader<R>
+where
+    R: std::io::Read,
+{
+    pub fn read(&mut self) -> std::io::Result<ValueRow> {
+        let Some(header) = &self.header else {
+            self.header = Some(read_header(&mut self.read)?);
+
+            return self.read();
+        };
+
+        let row = read_row(&mut self.read, header, &mut self.buf)?;
+        Ok(row)
+    }
+}
+
+fn read_header<R>(read: &mut R) -> std::io::Result<Vec<AtomScheme>>
+where
+    R: std::io::Read,
+{
+    let len = read.read_varint()?;
+    let mut buf = vec![0; len];
+    read.read_exact(&mut buf)?;
+    let header: Vec<AtomScheme> =
+        bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
+    Ok(header)
+}
+fn read_row<R>(
+    read: &mut R,
+    atom_schemes: &[AtomScheme],
+    buf: &mut Vec<u8>,
+) -> std::io::Result<ValueRow>
+where
+    R: std::io::Read,
+{
+    let len = read.read_varint()?;
+
+    buf.clear();
+    buf.extend(std::iter::repeat(0).take(len));
+    read.read_exact(buf)?;
+    let row = ValueRow::decode(atom_schemes, &mut std::io::Cursor::new(buf))
+        .ok_or(std::io::ErrorKind::InvalidInput)?;
+    Ok(row)
 }
 
 #[cfg(test)]
@@ -187,5 +241,17 @@ mod tests {
         let b_: A = reader.read().unwrap();
         assert_eq!(a, a_);
         assert_eq!(b, b_);
+
+        let mut reader = OvBinRawReader::new(std::io::Cursor::new(&buf));
+        let a_ = reader.read().unwrap();
+        let b_ = reader.read().unwrap();
+        assert_eq!(
+            a_.atoms().as_slice(),
+            [Some(AtomValue::I64(1)), Some(AtomValue::F64(2.0))]
+        );
+        assert_eq!(
+            b_.atoms().as_slice(),
+            [Some(AtomValue::I64(3)), Some(AtomValue::F64(4.0))]
+        );
     }
 }

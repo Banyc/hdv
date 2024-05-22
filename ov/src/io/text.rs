@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    format::{AtomType, AtomValue, ValueRow},
+    format::{AtomScheme, AtomType, AtomValue, ValueRow},
     serde::{OvDeserialize, OvScheme, OvSerialize},
 };
 
@@ -124,9 +124,7 @@ where
 {
     pub fn read(&mut self) -> std::io::Result<O> {
         let Some(shift_header) = &self.shift_header else {
-            self.buf.clear();
-            self.read.read_line(&mut self.buf)?;
-            let header = ron::from_str(&self.buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
+            let header = read_header(&mut self.read, &mut self.buf)?;
             let shift_header = OvShiftedHeader::new(header, &O::object_scheme())
                 .ok_or(std::io::ErrorKind::InvalidInput)?;
             self.shift_header = Some(shift_header);
@@ -134,48 +132,106 @@ where
             return self.read();
         };
 
-        self.buf.clear();
-        self.read.read_line(&mut self.buf)?;
-        let items = self.buf.split(",");
-        let zip = items.zip(shift_header.header().iter());
-        let mut atoms = vec![];
-        for (item, scheme) in zip {
-            if item.split_whitespace().next().is_none() {
-                atoms.push(None);
-                continue;
-            }
-            let atom = match scheme.value {
-                AtomType::String => AtomValue::String(item.trim_start().to_string()),
-                AtomType::Bytes => return Err(std::io::ErrorKind::InvalidInput)?,
-                AtomType::U64 => AtomValue::U64(
-                    item.trim()
-                        .parse()
-                        .map_err(|_| std::io::ErrorKind::InvalidInput)?,
-                ),
-                AtomType::I64 => AtomValue::I64(
-                    item.trim()
-                        .parse()
-                        .map_err(|_| std::io::ErrorKind::InvalidInput)?,
-                ),
-                AtomType::F32 => AtomValue::F32(
-                    item.trim()
-                        .parse()
-                        .map_err(|_| std::io::ErrorKind::InvalidInput)?,
-                ),
-                AtomType::F64 => AtomValue::F64(
-                    item.trim()
-                        .parse()
-                        .map_err(|_| std::io::ErrorKind::InvalidInput)?,
-                ),
-            };
-            atoms.push(Some(atom));
-        }
+        let atoms = read_row(&mut self.read, shift_header.header(), &mut self.buf)?;
         self.atom_value_buf.clear();
         shift_header.shift(&atoms, &mut self.atom_value_buf);
 
         let object = O::deserialize(&mut self.atom_value_buf.as_slice()).unwrap();
         Ok(object)
     }
+}
+
+#[derive(Debug)]
+pub struct OvTextRawReader<R> {
+    header: Option<Vec<AtomScheme>>,
+    read: R,
+    buf: String,
+}
+impl<R> OvTextRawReader<R> {
+    pub fn new(read: R) -> Self {
+        Self {
+            header: None,
+            read,
+            buf: String::new(),
+        }
+    }
+
+    pub fn header(&self) -> Option<&Vec<AtomScheme>> {
+        self.header.as_ref()
+    }
+}
+impl<R> OvTextRawReader<R>
+where
+    R: std::io::BufRead,
+{
+    pub fn read(&mut self) -> std::io::Result<Vec<Option<AtomValue>>> {
+        let Some(header) = &self.header else {
+            let header = read_header(&mut self.read, &mut self.buf)?;
+            self.header = Some(header);
+
+            return self.read();
+        };
+
+        let atoms = read_row(&mut self.read, header, &mut self.buf)?;
+        Ok(atoms)
+    }
+}
+
+fn read_header<R>(read: &mut R, buf: &mut String) -> std::io::Result<Vec<AtomScheme>>
+where
+    R: std::io::BufRead,
+{
+    buf.clear();
+    read.read_line(buf)?;
+    let header: Vec<AtomScheme> =
+        ron::from_str(buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
+    Ok(header)
+}
+fn read_row<R>(
+    read: &mut R,
+    atom_schemes: &[AtomScheme],
+    buf: &mut String,
+) -> std::io::Result<Vec<Option<AtomValue>>>
+where
+    R: std::io::BufRead,
+{
+    buf.clear();
+    read.read_line(buf)?;
+    let items = buf.split(",");
+    let zip = items.zip(atom_schemes.iter());
+    let mut atoms = vec![];
+    for (item, scheme) in zip {
+        if item.split_whitespace().next().is_none() {
+            atoms.push(None);
+            continue;
+        }
+        let atom = match scheme.value {
+            AtomType::String => AtomValue::String(item.trim_start().to_string()),
+            AtomType::Bytes => return Err(std::io::ErrorKind::InvalidInput)?,
+            AtomType::U64 => AtomValue::U64(
+                item.trim()
+                    .parse()
+                    .map_err(|_| std::io::ErrorKind::InvalidInput)?,
+            ),
+            AtomType::I64 => AtomValue::I64(
+                item.trim()
+                    .parse()
+                    .map_err(|_| std::io::ErrorKind::InvalidInput)?,
+            ),
+            AtomType::F32 => AtomValue::F32(
+                item.trim()
+                    .parse()
+                    .map_err(|_| std::io::ErrorKind::InvalidInput)?,
+            ),
+            AtomType::F64 => AtomValue::F64(
+                item.trim()
+                    .parse()
+                    .map_err(|_| std::io::ErrorKind::InvalidInput)?,
+            ),
+        };
+        atoms.push(Some(atom));
+    }
+    Ok(atoms)
 }
 
 #[cfg(test)]
@@ -257,6 +313,18 @@ mod tests {
         let b_: A = reader.read().unwrap();
         assert_eq!(a, a_);
         assert_eq!(b, b_);
+
+        let mut reader = OvTextRawReader::new(std::io::Cursor::new(&buf));
+        let a_ = reader.read().unwrap();
+        let b_ = reader.read().unwrap();
+        assert_eq!(
+            a_.as_slice(),
+            [Some(AtomValue::I64(1)), Some(AtomValue::F64(2.0))]
+        );
+        assert_eq!(
+            b_.as_slice(),
+            [Some(AtomValue::I64(3)), Some(AtomValue::F64(4.0))]
+        );
 
         let mut buf = vec![];
         let options = OvTextWriterOptions {

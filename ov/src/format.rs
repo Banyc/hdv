@@ -23,6 +23,10 @@ impl ValueRow {
         &self.atoms
     }
 
+    pub fn into_atoms(self) -> Vec<Option<AtomValue>> {
+        self.atoms
+    }
+
     const IS_NONE: u8 = 0;
     const IS_SOME: u8 = 1;
 
