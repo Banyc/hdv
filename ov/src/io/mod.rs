@@ -4,6 +4,7 @@ use crate::{
 };
 
 pub mod bin;
+pub mod text;
 
 #[derive(Debug)]
 struct OvShiftedHeader {

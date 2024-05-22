@@ -6,5 +6,6 @@ edition = "2021"
 [dependencies]
 bincode = "1"
 integer-encoding = "4"
+ron = "0.8"
 serde = { version = "1", features = ["derive"] }
 strum = { version = "0.26", features = ["derive"] }
