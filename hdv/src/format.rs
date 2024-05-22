@@ -75,6 +75,7 @@ pub enum AtomValue {
     I64(i64),
     F32(f32),
     F64(f64),
+    Bool(bool),
 }
 impl AtomValue {
     pub fn string(&self) -> Option<&String> {
@@ -113,6 +114,15 @@ impl AtomValue {
         };
         Some(*x)
     }
+    pub fn bool(&self) -> Option<bool> {
+        let Self::Bool(x) = self else {
+            return None;
+        };
+        Some(*x)
+    }
+
+    const BOOL_FALSE: u8 = 0;
+    const BOOL_TRUE: u8 = 1;
 
     pub fn encode(&self, buf: &mut Vec<u8>) {
         match &self {
@@ -136,6 +146,14 @@ impl AtomValue {
             }
             AtomValue::F64(x) => {
                 buf.write_fixedint(x.to_bits()).unwrap();
+            }
+            AtomValue::Bool(x) => {
+                buf.write_fixedint(if *x {
+                    Self::BOOL_TRUE
+                } else {
+                    Self::BOOL_FALSE
+                })
+                .unwrap();
             }
         }
     }
@@ -169,6 +187,14 @@ impl AtomValue {
             AtomType::F64 => {
                 let bits: u64 = buf.read_fixedint().ok()?;
                 Some(Self::F64(f64::from_bits(bits)))
+            }
+            AtomType::Bool => {
+                let bit: u8 = buf.read_fixedint().ok()?;
+                Some(Self::Bool(match bit {
+                    Self::BOOL_FALSE => false,
+                    Self::BOOL_TRUE => true,
+                    _ => return None,
+                }))
             }
         }
     }

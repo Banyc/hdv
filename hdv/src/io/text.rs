@@ -240,6 +240,9 @@ where
             AtomValue::F64(x) => {
                 write.write_all(format!("{x},").as_bytes())?;
             }
+            AtomValue::Bool(x) => {
+                write.write_all(format!("{x},").as_bytes())?;
+            }
         }
     }
     write.write_all(b"\n")?;
@@ -282,6 +285,11 @@ where
                     .map_err(|_| std::io::ErrorKind::InvalidInput)?,
             ),
             AtomType::F64 => AtomValue::F64(
+                item.trim()
+                    .parse()
+                    .map_err(|_| std::io::ErrorKind::InvalidInput)?,
+            ),
+            AtomType::Bool => AtomValue::Bool(
                 item.trim()
                     .parse()
                     .map_err(|_| std::io::ErrorKind::InvalidInput)?,

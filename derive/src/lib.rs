@@ -360,6 +360,9 @@ impl HighLevelAtomType {
             HighLevelAtomType::Compatible(AtomType::U64) => {
                 quote::quote! { U64 }
             }
+            HighLevelAtomType::Compatible(AtomType::Bool) => {
+                quote::quote! { Bool }
+            }
         }
     }
 
@@ -382,6 +385,9 @@ impl HighLevelAtomType {
             }
             HighLevelAtomType::Compatible(AtomType::U64) => {
                 quote::quote! { u64() }
+            }
+            HighLevelAtomType::Compatible(AtomType::Bool) => {
+                quote::quote! { bool() }
             }
         }
     }
