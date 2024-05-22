@@ -3,9 +3,11 @@ use std::marker::PhantomData;
 use integer_encoding::{VarIntReader, VarIntWriter};
 
 use crate::{
-    format::{AtomScheme, ValueRow},
+    format::{AtomValue, ValueRow},
     serde::{OvDeserialize, OvScheme, OvSerialize},
 };
+
+use super::OvShiftedHeader;
 
 #[derive(Debug)]
 pub struct OvBinWriter<W, O> {
@@ -59,17 +61,19 @@ where
 
 #[derive(Debug)]
 pub struct OvBinReader<R, O> {
-    header: Option<Vec<AtomScheme>>,
+    shift_header: Option<OvShiftedHeader>,
     read: R,
     buf: Vec<u8>,
+    atom_value_buf: Vec<Option<AtomValue>>,
     _object: PhantomData<O>,
 }
 impl<R, V> OvBinReader<R, V> {
     pub fn new(read: R) -> Self {
         Self {
-            header: None,
+            shift_header: None,
             read,
             buf: vec![],
+            atom_value_buf: vec![],
             _object: PhantomData,
         }
     }
@@ -80,16 +84,15 @@ where
     O: OvDeserialize + OvScheme,
 {
     pub fn read(&mut self) -> std::io::Result<O> {
-        let Some(header) = &self.header else {
+        let Some(shift_header) = &self.shift_header else {
             let len = self.read.read_varint()?;
             let mut buf = vec![0; len];
             self.read.read_exact(&mut buf)?;
             let header =
                 bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
-            if header != O::object_scheme().atom_schemes() {
-                return Err(std::io::ErrorKind::InvalidInput)?;
-            }
-            self.header = Some(header);
+            let shift_header = OvShiftedHeader::new(header, &O::object_scheme())
+                .ok_or(std::io::ErrorKind::InvalidInput)?;
+            self.shift_header = Some(shift_header);
 
             return self.read();
         };
@@ -99,10 +102,12 @@ where
         self.buf.clear();
         self.buf.extend(std::iter::repeat(0).take(len));
         self.read.read_exact(&mut self.buf)?;
-        let row = ValueRow::decode(header, &mut std::io::Cursor::new(&self.buf))
+        let row = ValueRow::decode(shift_header.header(), &mut std::io::Cursor::new(&self.buf))
             .ok_or(std::io::ErrorKind::InvalidInput)?;
+        self.atom_value_buf.clear();
+        shift_header.shift(row.atoms(), &mut self.atom_value_buf);
 
-        let object = O::deserialize(&mut row.atoms().as_slice()).unwrap();
+        let object = O::deserialize(&mut self.atom_value_buf.as_slice()).unwrap();
         Ok(object)
     }
 }

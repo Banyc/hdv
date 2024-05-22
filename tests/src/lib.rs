@@ -2,13 +2,19 @@
 mod tests {
     use ov::{
         format::AtomValue,
-        io::{OvBinReader, OvBinWriter},
+        io::bin::{OvBinReader, OvBinWriter},
         serde::{OvDeserialize, OvSerialize},
     };
     use ov_derive::OvSerde;
 
     #[test]
     fn test_derive() {
+        #[derive(Debug, OvSerde, PartialEq)]
+        pub struct PartialA {
+            c: Option<f64>,
+            a: u16,
+        }
+
         #[derive(Debug, OvSerde, PartialEq)]
         pub struct A {
             a: u16,
@@ -65,5 +71,10 @@ mod tests {
         let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
         let a_: A = reader.read().unwrap();
         assert_eq!(a, a_);
+
+        let mut reader = OvBinReader::new(std::io::Cursor::new(&buf));
+        let partial_a: PartialA = reader.read().unwrap();
+        assert_eq!(a.a, partial_a.a);
+        assert_eq!(a.c, partial_a.c);
     }
 }
