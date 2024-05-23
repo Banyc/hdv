@@ -218,7 +218,7 @@ where
                 if x.contains(",")
                     || x.contains("\"")
                     || x.contains("\n")
-                    || x.trim_ascii_start() != x
+                    || x.trim_ascii_start().as_bytes() != x.as_bytes()
                 {
                     Err(std::io::ErrorKind::InvalidInput)?;
                 }
@@ -267,7 +267,7 @@ where
             continue;
         }
         let atom = match scheme.r#type {
-            AtomType::String => AtomValue::String(item.trim_start().to_string()),
+            AtomType::String => AtomValue::String(item.trim_start().into()),
             AtomType::Bytes => return Err(std::io::ErrorKind::InvalidInput)?,
             AtomType::U64 => AtomValue::U64(
                 item.trim()

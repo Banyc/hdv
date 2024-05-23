@@ -320,7 +320,8 @@ fn field_type(ty: &syn::Type) -> syn::Result<(FieldType, bool)> {
         }
         "f32" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::F32)),
         "f64" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::F64)),
-        "Vec < u8 >" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::Bytes)),
+        "Arc < [u8] >" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::Bytes)),
+        "Arc < str >" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::String)),
         "String" => FieldType::Atom(HighLevelAtomType::Compatible(AtomType::String)),
         _ => FieldType::Object(ty.clone()),
     };
@@ -403,8 +404,8 @@ mod tests {
                 a: u16,
                 b: B,
                 c: f64,
-                d: Vec<u8>,
-                e: String,
+                d: Arc<[u8]>,
+                e: Arc<str>,
                 f: Option<i8>,
             }
         "#;

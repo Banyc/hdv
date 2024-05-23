@@ -76,6 +76,8 @@ pub enum FieldType {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::format::{AtomScheme, AtomType, AtomValue};
 
     use super::*;
@@ -159,10 +161,10 @@ mod tests {
 
         #[derive(Debug, PartialEq)]
         struct B {
-            a: Vec<u8>,
+            a: Arc<[u8]>,
             b: i64,
-            c: String,
-            d: Option<Vec<u8>>,
+            c: Arc<str>,
+            d: Option<Arc<[u8]>>,
         }
         impl HdvScheme for B {
             fn object_scheme() -> ObjectScheme {
@@ -239,9 +241,9 @@ mod tests {
             b: None,
             c: Some(3.),
             d: B {
-                a: b"hello".to_vec(),
+                a: b"hello".as_ref().into(),
                 b: 2,
-                c: "world".to_owned(),
+                c: "world".into(),
                 d: None,
             },
         };
@@ -366,9 +368,9 @@ mod tests {
                 None,
                 None,
                 Some(AtomValue::F64(3.0)),
-                Some(AtomValue::Bytes(b"hello".to_vec())),
+                Some(AtomValue::Bytes(b"hello".as_ref().into())),
                 Some(AtomValue::I64(2)),
-                Some(AtomValue::String("world".to_owned())),
+                Some(AtomValue::String("world".into())),
                 None,
             ]
         );

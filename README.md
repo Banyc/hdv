@@ -9,6 +9,8 @@ CSV but can be parsed in a multi-layer `struct`.
 ### Import dependencies
 
 ```rust
+use std::sync::Arc;
+
 use hdv::{
     format::AtomValue,
     io::{
@@ -32,10 +34,10 @@ pub struct A {
 }
 #[derive(Debug, HdvSerde, PartialEq)]
 struct B {
-    a: Vec<u8>,
+    a: Arc<[u8]>,
     b: i64,
-    c: String,
-    d: Option<Vec<u8>>,
+    c: Arc<str>,
+    d: Option<Arc<[u8]>>,
 }
 
 let a = A {
@@ -43,9 +45,9 @@ let a = A {
     b: None,
     c: Some(3.),
     d: B {
-        a: b"hello".to_vec(),
+        a: b"hello".as_ref().into(),
         b: 2,
-        c: "world".to_owned(),
+        c: "world".into(),
         d: None,
     },
 };
@@ -89,7 +91,7 @@ pub struct A {
 #[derive(Debug, HdvSerde, PartialEq)]
 struct B {
     b: i64,
-    c: String,
+    c: Arc<str>,
 }
 
 let a = A {
@@ -98,7 +100,7 @@ let a = A {
     c: Some(3.),
     d: B {
         b: 2,
-        c: "world".to_owned(),
+        c: "world".into(),
     },
 };
 

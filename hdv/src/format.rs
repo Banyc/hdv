@@ -1,4 +1,7 @@
-use std::io::{Read, Write};
+use std::{
+    io::{Read, Write},
+    sync::Arc,
+};
 
 use integer_encoding::{FixedIntReader, FixedIntWriter, VarIntReader, VarIntWriter};
 use serde::{Deserialize, Serialize};
@@ -70,8 +73,8 @@ impl ValueRow {
 #[strum_discriminants(derive(Serialize, Deserialize))]
 #[strum_discriminants(name(AtomType))]
 pub enum AtomValue {
-    String(String),
-    Bytes(Vec<u8>),
+    String(Arc<str>),
+    Bytes(Arc<[u8]>),
     U64(u64),
     I64(i64),
     F32(f32),
@@ -79,13 +82,13 @@ pub enum AtomValue {
     Bool(bool),
 }
 impl AtomValue {
-    pub fn string(&self) -> Option<&String> {
+    pub fn string(&self) -> Option<&Arc<str>> {
         let Self::String(x) = self else {
             return None;
         };
         Some(x)
     }
-    pub fn bytes(&self) -> Option<&Vec<u8>> {
+    pub fn bytes(&self) -> Option<&Arc<[u8]>> {
         let Self::Bytes(x) = self else {
             return None;
         };
@@ -165,13 +168,13 @@ impl AtomValue {
                 let len: usize = buf.read_varint().ok()?;
                 let mut bytes = vec![0; len];
                 buf.read_exact(&mut bytes).ok()?;
-                Some(Self::String(String::from_utf8(bytes).ok()?))
+                Some(Self::String(String::from_utf8(bytes).ok()?.into()))
             }
             AtomType::Bytes => {
                 let len: usize = buf.read_varint().ok()?;
                 let mut bytes = vec![0; len];
                 buf.read_exact(&mut bytes).ok()?;
-                Some(Self::Bytes(bytes))
+                Some(Self::Bytes(bytes.into()))
             }
             AtomType::U64 => {
                 let x: u64 = buf.read_varint().ok()?;

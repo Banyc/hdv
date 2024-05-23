@@ -122,13 +122,13 @@ fn hdv_polars_write(df: &polars::frame::DataFrame) -> Option<(Vec<ValueRow>, Vec
                 .str()
                 .unwrap()
                 .iter()
-                .map(|x| x.map(|x| x.to_owned()).map(AtomValue::String))
+                .map(|x| x.map(|x| x.into()).map(AtomValue::String))
                 .collect(),
             AtomType::Bytes => series
                 .binary()
                 .unwrap()
                 .iter()
-                .map(|x| x.map(|x| x.to_owned()).map(AtomValue::Bytes))
+                .map(|x| x.map(|x| x.into()).map(AtomValue::Bytes))
                 .collect(),
             AtomType::U64 => series
                 .cast(&polars::datatypes::DataType::UInt64)
@@ -197,14 +197,14 @@ fn hdv_polars_read(rows: Vec<ValueRow>, header: &[AtomScheme]) -> polars::frame:
             AtomType::String => {
                 let column = column
                     .into_iter()
-                    .map(|x| x.map(|x| x.string().cloned().unwrap()))
+                    .map(|x| x.map(|x| x.string().map(|x| x.to_string()).unwrap()))
                     .collect::<Vec<Option<String>>>();
                 polars::series::Series::new(&column_scheme.name, column)
             }
             AtomType::Bytes => {
                 let column = column
                     .into_iter()
-                    .map(|x| x.map(|x| x.bytes().cloned().unwrap()))
+                    .map(|x| x.map(|x| x.bytes().map(|x| x.to_vec()).unwrap()))
                     .collect::<Vec<Option<Vec<u8>>>>();
                 polars::series::Series::new(&column_scheme.name, column)
             }

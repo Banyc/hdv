@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use hdv::{
         format::AtomValue,
         io::{
@@ -21,10 +23,10 @@ mod tests {
         }
         #[derive(Debug, HdvSerde, PartialEq)]
         struct B {
-            a: Vec<u8>,
+            a: Arc<[u8]>,
             b: i64,
-            c: String,
-            d: Option<Vec<u8>>,
+            c: Arc<str>,
+            d: Option<Arc<[u8]>>,
         }
 
         let a = A {
@@ -32,9 +34,9 @@ mod tests {
             b: None,
             c: Some(3.),
             d: B {
-                a: b"hello".to_vec(),
+                a: b"hello".as_ref().into(),
                 b: 2,
-                c: "world".to_owned(),
+                c: "world".into(),
                 d: None,
             },
         };
@@ -50,9 +52,9 @@ mod tests {
                 None,
                 None,
                 Some(AtomValue::F64(3.0)),
-                Some(AtomValue::Bytes(b"hello".to_vec())),
+                Some(AtomValue::Bytes(b"hello".as_ref().into())),
                 Some(AtomValue::I64(2)),
-                Some(AtomValue::String("world".to_owned())),
+                Some(AtomValue::String("world".into())),
                 None,
             ]
         );
@@ -93,7 +95,7 @@ mod tests {
         #[derive(Debug, HdvSerde, PartialEq)]
         struct B {
             b: i64,
-            c: String,
+            c: Arc<str>,
         }
 
         let a = A {
@@ -102,7 +104,7 @@ mod tests {
             c: Some(3.),
             d: B {
                 b: 2,
-                c: "world".to_owned(),
+                c: "world".into(),
             },
         };
 
@@ -116,7 +118,7 @@ mod tests {
                 None,
                 Some(AtomValue::F64(3.0)),
                 Some(AtomValue::I64(2)),
-                Some(AtomValue::String("world".to_owned())),
+                Some(AtomValue::String("world".into())),
             ]
         );
 
