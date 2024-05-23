@@ -112,12 +112,12 @@ fn hdv_polars_write(df: &polars::frame::DataFrame) -> Option<(Vec<ValueRow>, Vec
         };
         header.push(AtomScheme {
             name: series.name().to_string(),
-            value: atom_type,
+            r#type: atom_type,
         });
     }
     let mut columns = vec![];
     for (scheme, series) in header.iter().zip(series_array.iter()) {
-        let column: Vec<Option<AtomValue>> = match scheme.value {
+        let column: Vec<Option<AtomValue>> = match scheme.r#type {
             AtomType::String => series
                 .str()
                 .unwrap()
@@ -193,7 +193,7 @@ fn hdv_polars_read(rows: Vec<ValueRow>, header: &[AtomScheme]) -> polars::frame:
             let cell = row.atoms()[i].clone();
             column.push(cell);
         }
-        let series = match column_scheme.value {
+        let series = match column_scheme.r#type {
             AtomType::String => {
                 let column = column
                     .into_iter()

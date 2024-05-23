@@ -7,7 +7,7 @@ use strum::EnumDiscriminants;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtomScheme {
     pub name: String,
-    pub value: AtomType,
+    pub r#type: AtomType,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,7 +48,7 @@ impl ValueRow {
 
     pub fn decode(atom_schemes: &[AtomScheme], buf: &mut std::io::Cursor<&[u8]>) -> Option<Self> {
         let mut atoms = vec![];
-        for ty in atom_schemes.iter().map(|x| x.value) {
+        for ty in atom_schemes.iter().map(|x| x.r#type) {
             let is_some: u8 = buf.read_fixedint().ok()?;
             match is_some {
                 Self::IS_NONE => {

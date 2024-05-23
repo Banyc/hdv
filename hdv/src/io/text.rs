@@ -266,7 +266,7 @@ where
             atoms.push(None);
             continue;
         }
-        let atom = match scheme.value {
+        let atom = match scheme.r#type {
             AtomType::String => AtomValue::String(item.trim_start().to_string()),
             AtomType::Bytes => return Err(std::io::ErrorKind::InvalidInput)?,
             AtomType::U64 => AtomValue::U64(

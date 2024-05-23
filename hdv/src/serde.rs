@@ -44,7 +44,7 @@ impl FieldScheme {
             ValueType::Atom(x) => {
                 return vec![AtomScheme {
                     name: self.name.clone(),
-                    value: *x,
+                    r#type: *x,
                 }]
             }
             ValueType::Object(object) => object.atom_schemes(),
@@ -54,7 +54,7 @@ impl FieldScheme {
             let name = format!("{}.{}", self.name, post_atom.name);
             atoms.push(AtomScheme {
                 name,
-                value: post_atom.value,
+                r#type: post_atom.r#type,
             });
         }
         atoms
@@ -314,43 +314,43 @@ mod tests {
             [
                 AtomScheme {
                     name: "a".to_owned(),
-                    value: AtomType::U64,
+                    r#type: AtomType::U64,
                 },
                 AtomScheme {
                     name: "b.a".to_owned(),
-                    value: AtomType::Bytes,
+                    r#type: AtomType::Bytes,
                 },
                 AtomScheme {
                     name: "b.b".to_owned(),
-                    value: AtomType::I64,
+                    r#type: AtomType::I64,
                 },
                 AtomScheme {
                     name: "b.c".to_owned(),
-                    value: AtomType::String,
+                    r#type: AtomType::String,
                 },
                 AtomScheme {
                     name: "b.d".to_owned(),
-                    value: AtomType::Bytes,
+                    r#type: AtomType::Bytes,
                 },
                 AtomScheme {
                     name: "c".to_owned(),
-                    value: AtomType::F64,
+                    r#type: AtomType::F64,
                 },
                 AtomScheme {
                     name: "d.a".to_owned(),
-                    value: AtomType::Bytes,
+                    r#type: AtomType::Bytes,
                 },
                 AtomScheme {
                     name: "d.b".to_owned(),
-                    value: AtomType::I64,
+                    r#type: AtomType::I64,
                 },
                 AtomScheme {
                     name: "d.c".to_owned(),
-                    value: AtomType::String,
+                    r#type: AtomType::String,
                 },
                 AtomScheme {
                     name: "d.d".to_owned(),
-                    value: AtomType::Bytes,
+                    r#type: AtomType::Bytes,
                 },
             ]
         );

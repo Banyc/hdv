@@ -45,6 +45,6 @@ fn assert_atom_types(header: &[AtomScheme], row: &ValueRow) {
         let Some(b) = b else {
             continue;
         };
-        assert_eq!(a.value, b.into());
+        assert_eq!(a.r#type, b.into());
     }
 }
