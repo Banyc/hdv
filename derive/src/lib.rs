@@ -75,7 +75,7 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
                         if let Some(x) = self.#field_name.as_ref() {
                             #HdvSerialize::serialize(x, values);
                         } else {
-                            <#Name as HdvSerialize>::fill_nulls(values);
+                            <#Name as #HdvSerialize>::fill_nulls(values);
                         }
                     }
                 } else {
@@ -116,7 +116,7 @@ fn impl_serialize(serde: &Serde) -> proc_macro2::TokenStream {
     for field in &serde.fields {
         let fill_null = match &field.ty {
             FieldType::Object(Name) => {
-                quote::quote! { <#Name as HdvSerialize>::fill_nulls(values); }
+                quote::quote! { <#Name as #HdvSerialize>::fill_nulls(values); }
             }
             FieldType::Atom(_) => {
                 quote::quote! { values.push(None); }
