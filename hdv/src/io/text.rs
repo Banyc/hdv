@@ -218,7 +218,7 @@ where
                 if x.contains(",")
                     || x.contains("\"")
                     || x.contains("\n")
-                    || x.trim_ascii_start().as_bytes() != x.as_bytes()
+                    || x.trim_start().as_bytes() != x.as_bytes()
                 {
                     Err(std::io::ErrorKind::InvalidInput)?;
                 }
