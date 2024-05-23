@@ -16,7 +16,7 @@ where
 {
     let (rows, header) = hdv_polars_write(df).ok_or(std::io::ErrorKind::InvalidInput)?;
     let mut writer = HdvBinRawWriter::new(write, header);
-    for row in rows {
+    for row in &rows {
         writer.write(row)?;
     }
     Ok(())
@@ -31,7 +31,7 @@ where
 {
     let (rows, header) = hdv_polars_write(df).ok_or(std::io::ErrorKind::InvalidInput)?;
     let mut writer = HdvTextRawWriter::new(write, header, options);
-    for row in rows {
+    for row in &rows {
         writer.write(row)?;
     }
     Ok(())

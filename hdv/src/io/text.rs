@@ -46,7 +46,7 @@ where
         object.serialize(&mut atoms);
 
         let row = ValueRow::new(atoms);
-        write_row(&mut self.write, row)?;
+        write_row(&mut self.write, &row)?;
         Ok(())
     }
 
@@ -76,14 +76,14 @@ impl<W> HdvTextRawWriter<W>
 where
     W: std::io::Write,
 {
-    pub fn write(&mut self, row: ValueRow) -> std::io::Result<()> {
+    pub fn write(&mut self, row: &ValueRow) -> std::io::Result<()> {
         if !self.has_written_header {
             self.has_written_header = true;
 
             write_header(&mut self.write, &self.header, &self.options)?;
         }
 
-        assert_atom_types(&self.header, &row);
+        assert_atom_types(&self.header, row);
 
         write_row(&mut self.write, row)?;
         Ok(())
@@ -204,7 +204,7 @@ where
     Ok(header)
 }
 
-fn write_row<W>(write: &mut W, row: ValueRow) -> std::io::Result<()>
+fn write_row<W>(write: &mut W, row: &ValueRow) -> std::io::Result<()>
 where
     W: std::io::Write,
 {
@@ -408,13 +408,13 @@ mod tests {
         let header = A::object_scheme().atom_schemes().clone();
         let mut writer = HdvTextRawWriter::new(&mut buf_, header, options);
         writer
-            .write(ValueRow::new(vec![
+            .write(&ValueRow::new(vec![
                 Some(AtomValue::I64(1)),
                 Some(AtomValue::F64(2.0)),
             ]))
             .unwrap();
         writer
-            .write(ValueRow::new(vec![
+            .write(&ValueRow::new(vec![
                 Some(AtomValue::I64(3)),
                 Some(AtomValue::F64(4.0)),
             ]))
