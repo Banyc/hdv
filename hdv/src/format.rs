@@ -27,39 +27,40 @@ impl ValueRow {
         self.atoms
     }
 
-    const IS_NONE: u8 = 0;
-    const IS_SOME: u8 = 1;
-
     pub fn encode(&self, buf: &mut Vec<u8>) {
-        for atom in &self.atoms {
-            let atom = match atom {
-                Some(x) => {
-                    buf.write_fixedint(Self::IS_SOME).unwrap();
-                    x
+        let mut num_cont_somes: usize = 0;
+        for (i, atom) in self.atoms.iter().enumerate() {
+            if num_cont_somes == 0 {
+                for atom in &self.atoms[i..] {
+                    if atom.is_none() {
+                        break;
+                    }
+                    num_cont_somes += 1;
                 }
-                None => {
-                    buf.write_fixedint(Self::IS_NONE).unwrap();
-                    continue;
-                }
-            };
-            atom.encode(buf);
+                buf.write_varint(num_cont_somes).unwrap();
+            }
+            if num_cont_somes == 0 {
+                assert!(atom.is_none());
+                continue;
+            }
+            atom.as_ref().unwrap().encode(buf);
+            num_cont_somes -= 1;
         }
     }
-
     pub fn decode(atom_schemes: &[AtomScheme], buf: &mut std::io::Cursor<&[u8]>) -> Option<Self> {
         let mut atoms = vec![];
+        let mut num_cont_somes: usize = 0;
         for ty in atom_schemes.iter().map(|x| x.r#type) {
-            let is_some: u8 = buf.read_fixedint().ok()?;
-            match is_some {
-                Self::IS_NONE => {
-                    atoms.push(None);
-                    continue;
-                }
-                Self::IS_SOME => (),
-                _ => return None,
+            if num_cont_somes == 0 {
+                num_cont_somes = buf.read_varint().ok()?;
+            }
+            if num_cont_somes == 0 {
+                atoms.push(None);
+                continue;
             }
             let atom = AtomValue::decode(ty, buf)?;
             atoms.push(Some(atom));
+            num_cont_somes -= 1;
         }
         Some(Self { atoms })
     }
