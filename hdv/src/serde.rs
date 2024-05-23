@@ -36,18 +36,18 @@ impl ObjectScheme {
 #[derive(Debug, PartialEq, Eq)]
 pub struct FieldScheme {
     pub name: String,
-    pub value: ValueType,
+    pub ty: FieldType,
 }
 impl FieldScheme {
     pub fn atom_schemes(&self) -> Vec<AtomScheme> {
-        let post_atoms = match &self.value {
-            ValueType::Atom(x) => {
+        let post_atoms = match &self.ty {
+            FieldType::Atom(x) => {
                 return vec![AtomScheme {
                     name: self.name.clone(),
                     r#type: *x,
                 }]
             }
-            ValueType::Object(object) => object.atom_schemes(),
+            FieldType::Object(object) => object.atom_schemes(),
         };
         let mut atoms = vec![];
         for post_atom in &post_atoms {
@@ -61,15 +61,15 @@ impl FieldScheme {
     }
 
     pub fn atom_types(&self, types: &mut Vec<AtomType>) {
-        match &self.value {
-            ValueType::Atom(x) => types.push(*x),
-            ValueType::Object(object) => object.atom_types(types),
+        match &self.ty {
+            FieldType::Atom(x) => types.push(*x),
+            FieldType::Object(object) => object.atom_types(types),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ValueType {
+pub enum FieldType {
     Atom(AtomType),
     Object(ObjectScheme),
 }
@@ -95,19 +95,19 @@ mod tests {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomType::U64),
+                            ty: FieldType::Atom(AtomType::U64),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Object(<B as HdvScheme>::object_scheme()),
+                            ty: FieldType::Object(<B as HdvScheme>::object_scheme()),
                         },
                         FieldScheme {
                             name: "c".to_string(),
-                            value: ValueType::Atom(AtomType::F64),
+                            ty: FieldType::Atom(AtomType::F64),
                         },
                         FieldScheme {
                             name: "d".to_string(),
-                            value: ValueType::Object(<B as HdvScheme>::object_scheme()),
+                            ty: FieldType::Object(<B as HdvScheme>::object_scheme()),
                         },
                     ],
                 }
@@ -170,19 +170,19 @@ mod tests {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomType::Bytes),
+                            ty: FieldType::Atom(AtomType::Bytes),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Atom(AtomType::I64),
+                            ty: FieldType::Atom(AtomType::I64),
                         },
                         FieldScheme {
                             name: "c".to_string(),
-                            value: ValueType::Atom(AtomType::String),
+                            ty: FieldType::Atom(AtomType::String),
                         },
                         FieldScheme {
                             name: "d".to_string(),
-                            value: ValueType::Atom(AtomType::Bytes),
+                            ty: FieldType::Atom(AtomType::Bytes),
                         },
                     ],
                 }
@@ -253,54 +253,54 @@ mod tests {
                 fields: vec![
                     FieldScheme {
                         name: "a".to_owned(),
-                        value: ValueType::Atom(AtomType::U64,),
+                        ty: FieldType::Atom(AtomType::U64,),
                     },
                     FieldScheme {
                         name: "b".to_owned(),
-                        value: ValueType::Object(ObjectScheme {
+                        ty: FieldType::Object(ObjectScheme {
                             fields: vec![
                                 FieldScheme {
                                     name: "a".to_owned(),
-                                    value: ValueType::Atom(AtomType::Bytes,),
+                                    ty: FieldType::Atom(AtomType::Bytes,),
                                 },
                                 FieldScheme {
                                     name: "b".to_owned(),
-                                    value: ValueType::Atom(AtomType::I64,),
+                                    ty: FieldType::Atom(AtomType::I64,),
                                 },
                                 FieldScheme {
                                     name: "c".to_owned(),
-                                    value: ValueType::Atom(AtomType::String,),
+                                    ty: FieldType::Atom(AtomType::String,),
                                 },
                                 FieldScheme {
                                     name: "d".to_owned(),
-                                    value: ValueType::Atom(AtomType::Bytes,),
+                                    ty: FieldType::Atom(AtomType::Bytes,),
                                 },
                             ]
                         }),
                     },
                     FieldScheme {
                         name: "c".to_owned(),
-                        value: ValueType::Atom(AtomType::F64,),
+                        ty: FieldType::Atom(AtomType::F64,),
                     },
                     FieldScheme {
                         name: "d".to_owned(),
-                        value: ValueType::Object(ObjectScheme {
+                        ty: FieldType::Object(ObjectScheme {
                             fields: vec![
                                 FieldScheme {
                                     name: "a".to_owned(),
-                                    value: ValueType::Atom(AtomType::Bytes,),
+                                    ty: FieldType::Atom(AtomType::Bytes,),
                                 },
                                 FieldScheme {
                                     name: "b".to_owned(),
-                                    value: ValueType::Atom(AtomType::I64,),
+                                    ty: FieldType::Atom(AtomType::I64,),
                                 },
                                 FieldScheme {
                                     name: "c".to_owned(),
-                                    value: ValueType::Atom(AtomType::String,),
+                                    ty: FieldType::Atom(AtomType::String,),
                                 },
                                 FieldScheme {
                                     name: "d".to_owned(),
-                                    value: ValueType::Atom(AtomType::Bytes,),
+                                    ty: FieldType::Atom(AtomType::Bytes,),
                                 },
                             ]
                         }),

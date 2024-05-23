@@ -25,25 +25,25 @@ fn impl_scheme(serde: &Serde) -> proc_macro2::TokenStream {
     for field in &serde.fields {
         let double_quoted_field_name = field.ident.to_string();
         let FieldScheme = field_scheme_type();
-        let ValueType = value_type_type();
-        let value = match &field.ty {
+        let FieldType = field_type_type();
+        let ty = match &field.ty {
             FieldType::Object(x) => {
                 quote::quote! {
-                    #ValueType::Object(<#x as #HdvScheme>::object_scheme())
+                    #FieldType::Object(<#x as #HdvScheme>::object_scheme())
                 }
             }
             FieldType::Atom(x) => {
                 let AtomTypeArm = x.atom_type_arm();
                 let AtomType = atom_type_type();
                 quote::quote! {
-                    #ValueType::Atom(#AtomType::#AtomTypeArm)
+                    #FieldType::Atom(#AtomType::#AtomTypeArm)
                 }
             }
         };
         field_schemes.push(quote::quote! {
             #FieldScheme {
                 name: #double_quoted_field_name.to_string(),
-                value: #value,
+                ty: #ty,
             },
         });
     }
@@ -234,9 +234,9 @@ fn field_scheme_type() -> proc_macro2::TokenStream {
         hdv::serde::FieldScheme
     }
 }
-fn value_type_type() -> proc_macro2::TokenStream {
+fn field_type_type() -> proc_macro2::TokenStream {
     quote::quote! {
-        hdv::serde::ValueType
+        hdv::serde::FieldType
     }
 }
 fn atom_type_type() -> proc_macro2::TokenStream {

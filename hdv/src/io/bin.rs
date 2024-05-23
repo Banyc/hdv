@@ -224,7 +224,7 @@ where
 mod tests {
     use crate::{
         format::{AtomType, AtomValue},
-        serde::{FieldScheme, ObjectScheme, ValueType},
+        serde::{FieldScheme, FieldType, ObjectScheme},
     };
 
     use super::*;
@@ -242,11 +242,11 @@ mod tests {
                     fields: vec![
                         FieldScheme {
                             name: "a".to_string(),
-                            value: ValueType::Atom(AtomType::I64),
+                            ty: FieldType::Atom(AtomType::I64),
                         },
                         FieldScheme {
                             name: "b".to_string(),
-                            value: ValueType::Atom(AtomType::F64),
+                            ty: FieldType::Atom(AtomType::F64),
                         },
                     ],
                 }
