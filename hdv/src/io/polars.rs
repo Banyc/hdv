@@ -61,7 +61,7 @@ where
         None => return Ok(polars::frame::DataFrame::empty()),
     };
 
-    Ok(hdv_polars_read(rows, header))
+    Ok(hdv_polars_read(rows.iter(), header))
 }
 pub fn hdv_text_polars_read<R>(read: R) -> std::io::Result<polars::frame::DataFrame>
 where
@@ -87,7 +87,7 @@ where
         None => return Ok(polars::frame::DataFrame::empty()),
     };
 
-    Ok(hdv_polars_read(rows, header))
+    Ok(hdv_polars_read(rows.iter(), header))
 }
 
 fn hdv_polars_write(df: &polars::frame::DataFrame) -> Option<(Vec<ValueRow>, Vec<AtomScheme>)> {
@@ -185,11 +185,14 @@ fn hdv_polars_write(df: &polars::frame::DataFrame) -> Option<(Vec<ValueRow>, Vec
     }
     Some((rows, header))
 }
-fn hdv_polars_read(rows: Vec<ValueRow>, header: &[AtomScheme]) -> polars::frame::DataFrame {
+fn hdv_polars_read<'a>(
+    rows: impl Iterator<Item = &'a ValueRow> + Clone,
+    header: &[AtomScheme],
+) -> polars::frame::DataFrame {
     let mut series_array = vec![];
     for (i, column_scheme) in header.iter().enumerate() {
         let mut column = vec![];
-        for row in &rows {
+        for row in rows.clone() {
             let cell = row.atoms()[i].clone();
             column.push(cell);
         }
