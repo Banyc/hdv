@@ -1,5 +1,3 @@
 {
-    "rust-analyzer.cargo.features": [
-        "polars"
-    ]
+    "rust-analyzer.cargo.features": "all",
 }
