@@ -1,4 +1,4 @@
-use polars::prelude::NamedFrom;
+use polars::prelude::Column;
 
 use crate::{
     format::{AtomScheme, AtomType, AtomValue, ValueRow},
@@ -94,7 +94,7 @@ fn hdv_polars_write(df: &polars::frame::DataFrame) -> Option<(Vec<ValueRow>, Vec
     let series_array = df.get_columns();
     let mut header = vec![];
     for series in series_array {
-        let atom_type = match series._dtype() {
+        let atom_type = match series.dtype() {
             polars::datatypes::DataType::Boolean => AtomType::Bool,
             polars::datatypes::DataType::UInt8
             | polars::datatypes::DataType::UInt16
@@ -202,49 +202,49 @@ fn hdv_polars_read<'a>(
                     .into_iter()
                     .map(|x| x.map(|x| x.string().map(|x| x.to_string()).unwrap()))
                     .collect::<Vec<Option<String>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
             AtomType::Bytes => {
                 let column = column
                     .into_iter()
                     .map(|x| x.map(|x| x.bytes().map(|x| x.to_vec()).unwrap()))
                     .collect::<Vec<Option<Vec<u8>>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
             AtomType::U64 => {
                 let column = column
                     .into_iter()
                     .map(|x| x.map(|x| x.u64().unwrap()))
                     .collect::<Vec<Option<u64>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
             AtomType::I64 => {
                 let column = column
                     .into_iter()
                     .map(|x| x.map(|x| x.i64().unwrap()))
                     .collect::<Vec<Option<i64>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
             AtomType::F32 => {
                 let column = column
                     .into_iter()
                     .map(|x| x.map(|x| x.f32().unwrap()))
                     .collect::<Vec<Option<f32>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
             AtomType::F64 => {
                 let column = column
                     .into_iter()
                     .map(|x| x.map(|x| x.f64().unwrap()))
                     .collect::<Vec<Option<f64>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
             AtomType::Bool => {
                 let column = column
                     .into_iter()
                     .map(|x| x.map(|x| x.bool().unwrap()))
                     .collect::<Vec<Option<bool>>>();
-                polars::series::Series::new(column_scheme.name.clone().into(), column)
+                Column::new(column_scheme.name.clone().into(), column)
             }
         };
         series_array.push(series);
