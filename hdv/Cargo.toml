@@ -1,18 +1,18 @@
 [package]
 name = "hdv"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 description = "Header-determined values"
 license = "MIT"
 repository = "https://github.com/Banyc/hdv.git"
 
 [dependencies]
-bincode = "1"
+bincode = "2"
 integer-encoding = "4"
-polars = { version = "0.45", optional = true }
-ron = "0.8"
+polars = { version = "0.47", optional = true }
+ron = "0.10"
 serde = { version = "1", features = ["derive"] }
-strum = { version = "0.26", features = ["derive"] }
+strum = { version = "0.27", features = ["derive"] }
 
 [features]
 default = []

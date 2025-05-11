@@ -174,7 +174,7 @@ fn write_header<W>(write: &mut W, header: &[AtomScheme]) -> std::io::Result<()>
 where
     W: std::io::Write,
 {
-    let header = bincode::serialize(header).unwrap();
+    let header = bincode::encode_to_vec(header, bincode::config::standard()).unwrap();
     write.write_varint(header.len())?;
     write.write_all(&header)?;
     Ok(())
@@ -186,8 +186,9 @@ where
     let len = read.read_varint()?;
     let mut buf = vec![0; len];
     read.read_exact(&mut buf)?;
-    let header: Vec<AtomScheme> =
-        bincode::deserialize(&buf).map_err(|_| std::io::ErrorKind::InvalidInput)?;
+    let (header, _): (Vec<AtomScheme>, _) =
+        bincode::decode_from_slice(&buf, bincode::config::standard())
+            .map_err(|_| std::io::ErrorKind::InvalidInput)?;
     Ok(header)
 }
 
@@ -213,7 +214,7 @@ where
     let len = read.read_varint()?;
 
     buf.clear();
-    buf.extend(std::iter::repeat(0).take(len));
+    buf.extend(std::iter::repeat_n(0, len));
     read.read_exact(buf)?;
     let row = ValueRow::decode(atom_schemes, &mut std::io::Cursor::new(buf))
         .ok_or(std::io::ErrorKind::InvalidInput)?;

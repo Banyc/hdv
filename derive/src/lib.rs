@@ -333,6 +333,7 @@ struct Field {
     pub ty: FieldType,
     pub nullable: bool,
 }
+#[allow(clippy::large_enum_variant)]
 enum FieldType {
     Object(syn::Type),
     Atom(HighLevelAtomType),
@@ -410,6 +411,6 @@ mod tests {
             }
         "#;
         let res = syn::parse_str::<syn::Stmt>(src).unwrap();
-        println!("{:#?}", res);
+        println!("{res:#?}");
     }
 }

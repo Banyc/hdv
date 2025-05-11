@@ -7,7 +7,7 @@ use integer_encoding::{FixedIntReader, FixedIntWriter, VarIntReader, VarIntWrite
 use serde::{Deserialize, Serialize};
 use strum::EnumDiscriminants;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bincode::Encode, bincode::Decode)]
 pub struct AtomScheme {
     pub name: String,
     pub r#type: AtomType,
@@ -69,8 +69,8 @@ impl ValueRow {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, EnumDiscriminants)]
-#[strum_discriminants(derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, EnumDiscriminants, bincode::Encode, bincode::Decode)]
+#[strum_discriminants(derive(Serialize, Deserialize, bincode::Encode, bincode::Decode))]
 #[strum_discriminants(name(AtomType))]
 pub enum AtomValue {
     String(Arc<str>),
